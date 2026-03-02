@@ -1,0 +1,129 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client"
+  output        = "../generated/prisma"
+  moduleFormat  = "cjs"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  avatar String?
+
+  email      String @unique
+  name       String?
+  licence_id String?
+  nick_name  String @unique
+  password   String
+  is_more_options_accepted   Boolean  @default(false)
+  designation String?
+  is_blocked  Boolean  @default(false)
+
+  otp                    String?
+  otp_expires            DateTime?
+  otp_verification_token String?
+
+  role UserRole @default(USER)
+
+  chatRooms_user1 ChatRoom[]  @relation("user1")
+  chatRooms_user2 ChatRoom[]  @relation("user2")
+  blockLists      BlockList[] @relation("user")
+  blockListsBy    BlockList[] @relation("blocked_user")
+
+  sentMessages     Chat[] @relation("sender")
+  receivedMessages Chat[] @relation("receiver")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model ChatRoom {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  user1_id String @db.ObjectId
+  user2_id String @db.ObjectId
+
+  user1 User @relation("user1", fields: [user1_id], references: [id], onDelete: Cascade)
+  user2 User @relation("user2", fields: [user2_id], references: [id], onDelete: Cascade)
+
+  chats Chat[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([user1_id, user2_id])
+  @@map("chat_rooms")
+}
+
+model Chat {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  chatRoom_id  String      @db.ObjectId
+  sender_id    String      @db.ObjectId
+  receiver_id  String      @db.ObjectId
+  message      String
+  type         MessageType @default(TEXT)
+  is_read      Boolean     @default(false)
+  is_delivered Boolean     @default(false)
+
+  chatRoom ChatRoom @relation(fields: [chatRoom_id], references: [id], onDelete: Cascade)
+  sender   User     @relation("sender", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver User     @relation("receiver", fields: [receiver_id], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("chats")
+}
+
+model BlockList {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  user_id         String @db.ObjectId
+  blocked_user_id String @db.ObjectId
+
+  user         User @relation("user", fields: [user_id], references: [id], onDelete: Cascade)
+  blocked_user User @relation("blocked_user", fields: [blocked_user_id], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([user_id, blocked_user_id])
+  @@map("block_list")
+}
+
+model SitePolicy {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  type PolicyType
+
+  content String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("site_policy")
+}
+
+enum MessageType {
+  TEXT
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum PolicyType {
+  PrivacyPolicy
+  Terms
+  More
+}

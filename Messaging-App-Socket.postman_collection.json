@@ -1,0 +1,470 @@
+{
+    "info": {
+        "_postman_id": "socket-messaging-app-collection",
+        "name": "Messaging App - Socket.IO & REST API",
+        "description": "Complete Postman collection for testing the messaging application's Socket.IO WebSocket events and REST API endpoints.\n\n## Setup Instructions\n\n1. **Set Environment Variables:**\n   - `base_url`: http://10.10.20.44:3000\n   - `socket_url`: ws://10.10.20.44:3000\n   - `auth_token`: (will be auto-set after login)\n   - `user_id`: (will be auto-set after login)\n\n2. **Authentication Flow:**\n   - First, run \"Register User\" or \"Sign In\" to get auth token\n   - Token is automatically saved to environment\n   - Use token for authenticated requests\n\n3. **WebSocket Testing:**\n   - Postman supports Socket.IO connections\n   - Use the WebSocket requests to test real-time events\n   - Connect with userId in query parameters\n\n## Socket.IO Events\n\n### Client → Server (Subscribe Events)\n- `message` - Send a new message\n- `message-received` - Acknowledge message delivery\n- `fetch-chat-rooms` - Get user's chat rooms\n- `fetch-messages` - Get messages from a room\n- `send-file` - Send file attachment\n\n### Server → Client (Emit Events)\n- `success` - Connection success\n- `error` - Error notification\n- `new-message` - New message received\n- `message-sent` - Message sent confirmation\n- `message-delivered` - Message delivered to recipient\n- `all-chat-rooms` - List of chat rooms\n- `all-messages` - Messages from a room",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Authentication",
+            "item": [
+                {
+                    "name": "Register User",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.data && response.data.id) {",
+                                    "        pm.environment.set('user_id', response.data.id);",
+                                    "    }",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"nick_name\": \"john_doe\",\n  \"licence_id\": \"LIC123456\",\n  \"password\": \"SecurePass123!\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/register",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "register"
+                            ]
+                        },
+                        "description": "Register a new user with nick_name, licence_id, and password."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Sign In",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.data && response.data.access_token) {",
+                                    "        pm.environment.set('auth_token', response.data.access_token);",
+                                    "        pm.environment.set('user_id', response.data.user.id);",
+                                    "        console.log('Auth token saved:', response.data.access_token);",
+                                    "        console.log('User ID saved:', response.data.user.id);",
+                                    "    }",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"licence_id\": \"LIC123456\",\n  \"password\": \"SecurePass123!\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/signin",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "signin"
+                            ]
+                        },
+                        "description": "Sign in with licence_id and password. Returns access token and user details."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Authenticated User",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{auth_token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/auth/me",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "me"
+                            ]
+                        },
+                        "description": "Get details of the currently authenticated user."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Authentication endpoints for user registration and login."
+        },
+        {
+            "name": "Chat - REST API",
+            "item": [
+                {
+                    "name": "Get User Chat Rooms",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{auth_token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/chat/rooms?page=1&limit=20",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "chat",
+                                "rooms"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1",
+                                    "description": "Page number (default: 1)"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "20",
+                                    "description": "Items per page (default: 10)"
+                                }
+                            ]
+                        },
+                        "description": "Fetch all chat rooms for the authenticated user with pagination."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Room Messages",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{auth_token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/chat/rooms/:roomId/messages?page=1&limit=50&roomId={{room_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "chat",
+                                "rooms",
+                                ":roomId",
+                                "messages"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1",
+                                    "description": "Page number"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "50",
+                                    "description": "Messages per page"
+                                },
+                                {
+                                    "key": "roomId",
+                                    "value": "{{room_id}}",
+                                    "description": "Chat room ID"
+                                }
+                            ],
+                            "variable": [
+                                {
+                                    "key": "roomId",
+                                    "value": "{{room_id}}",
+                                    "description": "MongoDB ObjectId of the chat room"
+                                }
+                            ]
+                        },
+                        "description": "Fetch messages from a specific chat room. Automatically marks unread messages as read."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "REST API endpoints for chat functionality."
+        },
+        {
+            "name": "Socket.IO - WebSocket Events",
+            "item": [
+                {
+                    "name": "Connect to Socket",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{socket_url}}/?userId={{user_id}}&transport=websocket",
+                            "host": [
+                                "{{socket_url}}"
+                            ],
+                            "path": [
+                                ""
+                            ],
+                            "query": [
+                                {
+                                    "key": "userId",
+                                    "value": "{{user_id}}",
+                                    "description": "MongoDB ObjectId of the user"
+                                },
+                                {
+                                    "key": "transport",
+                                    "value": "websocket"
+                                }
+                            ]
+                        },
+                        "description": "**WebSocket Connection**\n\nConnect to the Socket.IO server with userId in query parameters.\n\n**Expected Events:**\n- `success` - Connection successful\n- `error` - Connection failed (user not found)\n\n**Success Response:**\n```json\n{\n  \"message\": \"User Successfully Connected With Socket\"\n}\n```\n\n**Note:** In Postman, use the WebSocket request type and listen for these events."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Send Message",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"event\": \"message\",\n  \"data\": {\n    \"receiver_id\": \"{{receiver_user_id}}\",\n    \"message\": \"Hello! This is a test message.\"\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{socket_url}}/",
+                            "host": [
+                                "{{socket_url}}"
+                            ],
+                            "path": [
+                                ""
+                            ]
+                        },
+                        "description": "**Socket Event: `message`**\n\nSend a new message to another user.\n\n**Request Data:**\n```json\n{\n  \"receiver_id\": \"string\",  // MongoDB ObjectId\n  \"message\": \"string\",      // Message content\n  \"file\": \"FileBuffer\"      // Optional file attachment\n}\n```\n\n**Response Events:**\n- `message-sent` - Sent to sender (confirmation)\n- `new-message` - Sent to receiver (if online)\n\n**Response Structure:**\n```json\n{\n  \"id\": \"string\",\n  \"chatRoom_id\": \"string\",\n  \"sender_id\": \"string\",\n  \"receiver_id\": \"string\",\n  \"message\": \"string\",\n  \"is_delivered\": false,\n  \"is_read\": false,\n  \"createdAt\": \"2024-01-01T00:00:00.000Z\"\n}\n```"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Acknowledge Message Delivery",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"event\": \"message-received\",\n  \"data\": {\n    \"messageIds\": [\n      \"{{message_id_1}}\",\n      \"{{message_id_2}}\"\n    ]\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{socket_url}}/",
+                            "host": [
+                                "{{socket_url}}"
+                            ],
+                            "path": [
+                                ""
+                            ]
+                        },
+                        "description": "**Socket Event: `message-received`**\n\nAcknowledge that messages have been received and delivered.\n\n**Request Data:**\n```json\n{\n  \"messageIds\": [\"string\"]  // Array of message IDs\n}\n```\n\n**Process:**\n1. Client receives messages via `new-message` event\n2. Client sends acknowledgement with message IDs\n3. Server updates `is_delivered` and `is_read` to true\n4. Server notifies sender via `message-delivered` event\n\n**Response Event:**\n- `message-delivered` - Sent to original sender"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Fetch Chat Rooms",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"event\": \"fetch-chat-rooms\",\n  \"data\": {\n    \"page\": 1,\n    \"limit\": 20\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{socket_url}}/",
+                            "host": [
+                                "{{socket_url}}"
+                            ],
+                            "path": [
+                                ""
+                            ]
+                        },
+                        "description": "**Socket Event: `fetch-chat-rooms`**\n\nFetch user's chat rooms with pagination.\n\n**Request Data:**\n```json\n{\n  \"page\": 1,      // Page number (default: 1)\n  \"limit\": 20     // Items per page (default: 10)\n}\n```\n\n**Response Event:** `all-chat-rooms`\n\n**Response Structure:**\n```json\n{\n  \"rooms\": [\n    {\n      \"id\": \"string\",\n      \"user1_id\": \"string\",\n      \"user2_id\": \"string\",\n      \"createdAt\": \"date\",\n      \"updatedAt\": \"date\",\n      \"otherUser\": {\n        \"id\": \"string\",\n        \"nick_name\": \"string\",\n        \"licence_id\": \"string\",\n        \"avatar\": \"string\"\n      },\n      \"latest_message\": {\n        \"id\": \"string\",\n        \"message\": \"string\",\n        \"createdAt\": \"date\",\n        \"is_mine\": true,\n        \"is_delivered\": true,\n        \"is_read\": false\n      },\n      \"unread_count\": 5\n    }\n  ],\n  \"total\": 10\n}\n```"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Fetch Messages",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"event\": \"fetch-messages\",\n  \"data\": {\n    \"roomId\": \"{{room_id}}\",\n    \"page\": 1,\n    \"limit\": 50\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{socket_url}}/",
+                            "host": [
+                                "{{socket_url}}"
+                            ],
+                            "path": [
+                                ""
+                            ]
+                        },
+                        "description": "**Socket Event: `fetch-messages`**\n\nFetch messages from a specific chat room.\n\n**Request Data:**\n```json\n{\n  \"roomId\": \"string\",  // MongoDB ObjectId of chat room\n  \"page\": 1,\n  \"limit\": 50\n}\n```\n\n**Response Event:** `all-messages`\n\n**Response Structure:**\n```json\n{\n  \"messages\": [\n    {\n      \"id\": \"string\",\n      \"chatRoom_id\": \"string\",\n      \"sender_id\": \"string\",\n      \"receiver_id\": \"string\",\n      \"message\": \"string\",\n      \"is_delivered\": true,\n      \"is_read\": true,\n      \"createdAt\": \"date\",\n      \"is_mine\": false,\n      \"sender\": {\n        \"id\": \"string\",\n        \"nick_name\": \"string\",\n        \"avatar\": \"string\"\n      },\n      \"receiver\": {\n        \"id\": \"string\",\n        \"nick_name\": \"string\",\n        \"avatar\": \"string\"\n      }\n    }\n  ],\n  \"total\": 100\n}\n```\n\n**Note:** Fetching messages automatically marks unread messages as read."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Send File (Placeholder)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"event\": \"send-file\",\n  \"data\": {\n    \"receiver_id\": \"{{receiver_user_id}}\",\n    \"file\": {\n      \"name\": \"document.pdf\",\n      \"type\": \"application/pdf\",\n      \"data\": \"base64_encoded_file_data\"\n    }\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{socket_url}}/",
+                            "host": [
+                                "{{socket_url}}"
+                            ],
+                            "path": [
+                                ""
+                            ]
+                        },
+                        "description": "**Socket Event: `send-file`**\n\n⚠️ **Note:** This event is currently a placeholder and not fully implemented in the gateway.\n\nSend a file attachment to another user.\n\n**Expected Request Data:**\n```json\n{\n  \"receiver_id\": \"string\",\n  \"file\": {\n    \"name\": \"string\",\n    \"type\": \"string\",\n    \"data\": \"base64_string\"\n  }\n}\n```"
+                    },
+                    "response": []
+                }
+            ],
+            "description": "WebSocket events for real-time Socket.IO communication.\n\n**Important Notes:**\n- These requests demonstrate the event structure\n- In Postman, use WebSocket request type for actual testing\n- Connect first using \"Connect to Socket\" request\n- Listen for response events after sending\n\n**Testing in Postman:**\n1. Create a WebSocket request\n2. Connect to: `ws://10.10.20.44:3000/?userId=YOUR_USER_ID`\n3. Send events in JSON format:\n   ```json\n   {\n     \"event\": \"message\",\n     \"data\": { ... }\n   }\n   ```\n4. Listen for response events"
+        }
+    ],
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    ""
+                ]
+            }
+        },
+        {
+            "listen": "test",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    ""
+                ]
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://10.10.20.44:3000",
+            "type": "string"
+        },
+        {
+            "key": "socket_url",
+            "value": "ws://10.10.20.44:3000",
+            "type": "string"
+        },
+        {
+            "key": "auth_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "user_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "receiver_user_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "room_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "message_id_1",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "message_id_2",
+            "value": "",
+            "type": "string"
+        }
+    ]
+}
