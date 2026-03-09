@@ -4,8 +4,8 @@ export class RegisterUserDto {
 
         @IsString()
         @IsNotEmpty()
-        @Length(6, 66, {
-                message: "Licence ID must be 6 characters long"
+        @Length(6, 7, {
+                message: "Licence ID must be 6 or 7 characters long"
         })
         licence_id: string
 

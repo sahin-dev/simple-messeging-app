@@ -64,13 +64,24 @@ export class UserService {
     async findUserByIdentifier(identifier: string) {
         const user = await this.prismaService.user.findFirst({
             where: {
-                OR: [
-                    { licence_id: identifier },
-                    { nick_name: identifier },
-                    { email: identifier }
-                ]
+                licence_id: identifier,
             }
+
+        
         });
+
+        if(!user){
+            const userByNickName = await this.prismaService.user.findFirst({
+                where:{
+                    OR:[
+                        {nick_name:identifier},
+                        {email:identifier}
+                    ]
+                }
+            })
+           
+            return userByNickName
+        }
 
         return user;
     }
