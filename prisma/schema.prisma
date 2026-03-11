@@ -16,6 +16,7 @@ datasource db {
 model User {
   id     String  @id @default(auto()) @map("_id") @db.ObjectId
   avatar String?
+  fcm_token String?
 
   email      String @unique
   name       String?
@@ -25,6 +26,7 @@ model User {
   is_more_options_accepted   Boolean  @default(false)
   designation String?
   is_blocked  Boolean  @default(false)
+  is_deleted  Boolean  @default(false)
 
   otp                    String?
   otp_expires            DateTime?
@@ -48,7 +50,7 @@ model User {
 
 model ChatRoom {
   id String @id @default(auto()) @map("_id") @db.ObjectId
-
+  is_deleted Boolean @default(false)
   user1_id String @db.ObjectId
   user2_id String @db.ObjectId
 

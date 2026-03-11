@@ -298,4 +298,6 @@ export class ChatService {
 
         return chat;
     }
+
+    as
 }

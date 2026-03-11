@@ -1,5 +1,5 @@
 import { Transform, TransformFnParams } from "class-transformer"
-import { IsNotEmpty, IsString } from "class-validator"
+import { IsNotEmpty, IsOptional, IsString } from "class-validator"
 
 export class SigninDto {
 
@@ -12,4 +12,9 @@ export class SigninDto {
     @IsNotEmpty()
     @Transform(({ value }: TransformFnParams) => String(value).trim())
     password: string
+    
+    @IsString()
+    @IsNotEmpty()
+    @IsOptional()
+    fcm_token?: string
 }

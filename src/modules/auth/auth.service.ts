@@ -11,6 +11,7 @@ import { SMTPProvider } from "src/common/providres/smtp.provider";
 import type { ConfigType } from "@nestjs/config";
 import jwtConfig from "src/config/jwt.config";
 import { TokenPayload } from "./types/TokenPayload.type";
+import { sign } from "crypto";
 
 @Injectable()
 export class AuthService {
@@ -38,12 +39,28 @@ export class AuthService {
             throw new NotFoundException("No account found with this identifier!");
         }
 
+        if (user.is_blocked) {
+            throw new BadRequestException("Your account has been blocked. Please contact support for assistance.");
+        }
+        if (user.is_deleted) {
+            throw new BadRequestException("Your account has been deleted. If you think this is a mistake, please contact support.");
+        }
+
         if (!(await this.comparePassword(signInDto.password, user.password))) {
             throw new BadRequestException("Invalid credentials!");
         }
 
         const token = await this.signJwtToken(user);
         this.logger.log(`${user.nick_name ?? user.name} logged in.`);
+
+        if(signInDto.fcm_token){
+        await this.prismaService.user.update({
+            where: { id: user.id },
+            data: {
+                fcm_token: signInDto.fcm_token
+            }
+        })
+    }
 
         return { ...user, token };
     }

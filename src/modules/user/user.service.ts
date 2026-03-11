@@ -65,9 +65,8 @@ export class UserService {
         const user = await this.prismaService.user.findFirst({
             where: {
                 licence_id: identifier,
+                is_deleted: false
             }
-
-        
         });
 
         if(!user){
@@ -562,8 +561,31 @@ export class UserService {
 
         return blockList;
     }
-}
 
+    async deleteAccount (userId: string, password: string) {
+        const user = await this.prismaService.user.findUnique({ where: { id: userId } });
+
+        if (!user) {
+            throw new NotFoundException("User not found");
+        }
+        // Here you would typically verify the password before deleting the account
+        const passwordMatched = await this.encoder.compare(password, user.password);
+
+        if (!passwordMatched) {
+            throw new BadRequestException("Invalid password");
+        }
+
+        return await this.prismaService.user.update({
+            where: { id: userId },
+            data: { is_deleted: true }
+        });
+    }
+
+    async helpAndSupport(){
+        return "For any help and support, please contact us at emanuele.tocchetti@gmail.com. Our support team is available 24/7 to assist you with any issues or inquiries you may have."
+    }
+
+}
 
 
 

@@ -34,7 +34,6 @@ export class JwtGuard implements CanActivate {
                 secret: this.jwtConfigOptions.jwt_secret
             })
 
-
             const user = await this.getUserData(payload.id);
 
             if (!user) {
@@ -43,6 +42,10 @@ export class JwtGuard implements CanActivate {
 
             if(user.is_blocked){
                 throw new BadRequestException('Sorry, your are blocked by the admin.Kindly, Contact support.Thanks')
+            }
+
+            if(user.is_deleted){
+                throw new BadRequestException('Sorry, your account has been deleted. If you think this is a mistake, please contact support. Thanks')
             }
 
             request['payload'] = payload;

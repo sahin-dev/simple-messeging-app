@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, Query, Req, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Patch, Post, Query, Req, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { UserService } from "./user.service";
 import { plainToInstance } from "class-transformer";
 import { UserResponseDto } from "./dtos/user-response.dto";
@@ -19,6 +19,7 @@ import { UserRole } from "generated/prisma/enums";
 import { Roles } from "src/common/decorators/role.decorator";
 import { BlockUnblockDto } from "./dtos/block-unblock.dto";
 import { TogggleBlockUserDto } from "./dtos/block-user.dto";
+import { DeleteAccountDto } from "./dtos/delete-account.dto";
 
 @Controller({
     path: "users",
@@ -163,5 +164,18 @@ export class UserController {
             const updatedUser = await this.userService.unblockUser(toggleBlockuser.userId, payload.id)
 
             return updatedUser
+    }
+
+    @Delete()
+    async deleteAccount(@Req() request:Request, @Body() deleteAccountDto:DeleteAccountDto){
+        const payload = request['payload'] as TokenPayload;
+        await this.userService.deleteAccount(payload.id, deleteAccountDto.password);
+        return { message: "Account deleted successfully" };
+    }
+
+    @Get("help-support")
+    async helpSupport(){
+        const helpMessage = await this.userService.helpAndSupport();
+        return { message: helpMessage };
     }
 }
