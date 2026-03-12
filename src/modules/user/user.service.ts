@@ -493,11 +493,12 @@ export class UserService {
     async unblockUser(blockedUserId: string, userId: string) {
         const user = await this.prismaService.user.findUnique({ where: { id: userId } });
 
+
         if (!user) {
             throw new NotFoundException("User not found");
         }
 
-        const blockList = await this.prismaService.blockList.delete({
+        const blockList = await this.prismaService.blockList.findUnique({
             where: {
                 user_id_blocked_user_id: {
                     user_id: user.id,
@@ -505,6 +506,21 @@ export class UserService {
                 }
             }
         });
+
+        if(!blockList){
+            throw new BadRequestException("You have not blocked this user")
+        }
+
+       
+        await this.prismaService.blockList.delete({
+            where:{
+                user_id_blocked_user_id:{
+                    user_id: user.id,
+                    blocked_user_id: blockedUserId
+                }
+            }
+        });
+        
 
         return blockList;
     }
@@ -582,7 +598,7 @@ export class UserService {
     }
 
     async helpAndSupport(){
-        return "For any help and support, please contact us at emanuele.tocchetti@gmail.com. Our support team is available 24/7 to assist you with any issues or inquiries you may have."
+        return "support@platechat.app"
     }
 
 }
