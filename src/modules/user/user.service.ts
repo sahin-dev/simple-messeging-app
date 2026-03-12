@@ -10,6 +10,7 @@ import * as fs from "fs";
 import { ChatService } from "../chat/chat.service";
 import { PaginationDto } from "src/common/dtos/pagination.dto";
 import { SocketGateway } from "../chat/gateway/chat.gateway";
+import otpEmailTemplate from "src/common/templates/emailVerification.template";
 
 @Injectable()
 export class UserService {
@@ -440,7 +441,7 @@ export class UserService {
         this.smtpProvider.sendMail(
             email,
             "OTP for password reset",
-            `Your OTP is: ${otp}`
+            otpEmailTemplate({ otp })
         );
 
         return { message: "OTP sent successfully" };
