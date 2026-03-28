@@ -39,6 +39,7 @@ export class JwtGuard implements CanActivate {
             if (!user) {
                 throw new BadRequestException("User data does not exist");
             }
+            
 
             if(user.is_blocked){
                 throw new BadRequestException('Sorry, your are blocked by the admin.Kindly, Contact support.Thanks')

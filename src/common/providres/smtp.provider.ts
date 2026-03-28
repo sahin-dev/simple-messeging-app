@@ -11,7 +11,8 @@ export class SMTPProvider {
     constructor(@Inject(mailerConfig.KEY)private readonly mailerConfiguration:ConfigType<typeof MailerConfig>){
 
         this.transporter = nodemailer.createTransport({
-            service:'gmail',
+            host: this.mailerConfiguration.host,
+            port: parseInt(this.mailerConfiguration.port!),
             auth:{
                 user: this.mailerConfiguration.user,
                 pass: this.mailerConfiguration.password

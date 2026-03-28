@@ -602,6 +602,13 @@ export class UserService {
         return "support@platechat.app"
     }
 
+    async findUserByEmail(email:string){
+
+        const user = await this.prismaService.user.findFirst({where:{email:email}})
+
+        return user
+    }
+
 }
 
 

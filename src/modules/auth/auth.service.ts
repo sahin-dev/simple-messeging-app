@@ -12,6 +12,7 @@ import type { ConfigType } from "@nestjs/config";
 import jwtConfig from "src/config/jwt.config";
 import { TokenPayload } from "./types/TokenPayload.type";
 import { sign } from "crypto";
+import otpEmailTemplate from "src/common/templates/emailVerification.template";
 
 @Injectable()
 export class AuthService {
@@ -23,7 +24,8 @@ export class AuthService {
         private readonly prismaService: PrismaService,
         private readonly jwtService: JwtService,
         @Inject(jwtConfig.KEY)
-        private readonly jwtConfigOptions: ConfigType<typeof jwtConfig>
+        private readonly jwtConfigOptions: ConfigType<typeof jwtConfig>,
+        private readonly smtpProvider:SMTPProvider
     ) { }
 
     /**
@@ -44,6 +46,15 @@ export class AuthService {
         }
         if (user.is_deleted) {
             throw new BadRequestException("Your account has been deleted. If you think this is a mistake, please contact support.");
+        }
+
+        if(!user.email_verified){
+            this.sendEmailVerificationCode(user.id, user.name!, user.email)
+            return {
+                message:"Verification email sent to your email. KIndly Berifiy yoour email",
+                is_email_verified:user.email_verified,
+                role:user.role
+            }
         }
 
         if (!(await this.comparePassword(signInDto.password, user.password))) {
@@ -133,7 +144,9 @@ export class AuthService {
         const { confirmPassword, ...userData } = registerUserDto;
         const user = await this.userService.addUser(userData);
 
-        return { message: "User registered successfully", user: { id: user.id, licence_id: user.licence_id, nick_name: user.nick_name } };
+        this.sendEmailVerificationCode(user.id, user.name!, user.email)
+
+        return { message: "Verification email sent to the email", user: { id: user.id, licence_id: user.licence_id, nick_name: user.nick_name,is_email_verified:user.email_verified } };
     }
 
     /**
@@ -155,5 +168,76 @@ export class AuthService {
     async getAuthenticatedUser(userId: string) {
         const userDetails = await this.userService.findUserById(userId);
         return userDetails;
+    }
+
+    /**
+     * Send OTP to user email
+     * @param email 
+     * @returns 
+     */
+    async sendOtpToEmail(email: string) {
+        const user = await this.prismaService.user.findFirst({ where: { email } });
+
+        if (!user) {
+            throw new NotFoundException("User not found");
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+        await this.prismaService.user.update({
+            where: { id: user.id },
+            data: { otp, otp_expires: otpExpires }
+        });
+
+        this.smtpProvider.sendMail(
+            email,
+            "OTP for email veirification",
+            otpEmailTemplate({ otp })
+        );
+
+        return { message: "OTP sent successfully" };
+    }
+
+     /**
+     * 
+     * @param email 
+     * @returns 
+     */
+    async resendEmailVerificationCode(email:string){
+        const user = await this.userService.findUserByEmail(email)
+
+        if(!user){
+            throw new NotFoundException("user not found")
+        }
+        await this.sendEmailVerificationCode(user.id, user.name || "User",user.email)
+
+        return {message:"email verification code resent successfully"}
+    }
+    
+    /**
+     * 
+     * @param name 
+     * @param email 
+     */
+
+    private async sendEmailVerificationCode(userId:string, name:string, email:string){
+
+        const code = this.generateEmailVerificationCode()
+        const expirationTime = new Date(Date.now() + 10 * 60 * 1000)
+        this.prismaService.user.update({where:{id:userId}, data:{otp:code, otp_expires:expirationTime}})
+        const emailTemplate = ({name,verificationCode:code, verificationCodeExpire:10})
+
+        this.smtpProvider.sendMail(email, "Email Verification code", otpEmailTemplate({name, otp:code}))
+    }
+
+     /**
+     * 
+     * @returns 
+     */
+
+    private generateEmailVerificationCode(){
+
+        return Math.round(100000 + Math.random() * 900000).toString()
     }
 }

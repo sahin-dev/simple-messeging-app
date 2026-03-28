@@ -27,6 +27,7 @@ model User {
   designation String?
   is_blocked  Boolean  @default(false)
   is_deleted  Boolean  @default(false)
+  email_verified Boolean @default(false)
 
   otp                    String?
   otp_expires            DateTime?
