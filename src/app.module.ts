@@ -10,6 +10,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import jwtConfig from './config/jwt.config';
 import { PrivacyPolicyModule } from './modules/privacy_policy/privacy_policy.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { BlacklistedwordModule } from './modules/blacklistedword/blacklistedword.module';
 import mailerConfig from './config/mailer.config';
 
 @Module({
@@ -20,7 +21,8 @@ import mailerConfig from './config/mailer.config';
     UserModule,
     ChatModule,
     PrivacyPolicyModule,
-    NotificationModule
+    NotificationModule,
+    BlacklistedwordModule
   ],
   controllers: [AppController],
   providers: [AppService

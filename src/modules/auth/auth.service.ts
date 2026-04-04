@@ -13,6 +13,7 @@ import jwtConfig from "src/config/jwt.config";
 import { TokenPayload } from "./types/TokenPayload.type";
 import { sign } from "crypto";
 import otpEmailTemplate from "src/common/templates/emailVerification.template";
+import welcomeEmailTemplate from "src/common/templates/welcomeEmail.template";
 
 @Injectable()
 export class AuthService {
@@ -144,7 +145,13 @@ export class AuthService {
         const { confirmPassword, ...userData } = registerUserDto;
         const user = await this.userService.addUser(userData);
 
-        this.sendEmailVerificationCode(user.id, user.name!, user.email)
+         this.smtpProvider.sendMail(
+            user.email,
+            "Welcome to PLATEChatter",
+            welcomeEmailTemplate({ name: user.name || user.nick_name || "User" })
+        );
+
+        // this.sendEmailVerificationCode(user.id, user.name!, user.email)
 
         return { message: "Verification email sent to the email", user: { id: user.id, licence_id: user.licence_id, nick_name: user.nick_name,is_email_verified:user.email_verified } };
     }

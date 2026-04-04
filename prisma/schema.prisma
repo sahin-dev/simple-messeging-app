@@ -120,6 +120,17 @@ enum MessageType {
   TEXT
 }
 
+model BlackListedWord {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  word String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("blacklisted_words")
+}
+
 enum UserRole {
   USER
   ADMIN
