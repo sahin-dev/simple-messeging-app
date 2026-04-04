@@ -365,7 +365,7 @@ export class UserService {
         this.smtpProvider.sendMail(
             email,
             "OTP for password reset",
-            `Your OTP is: ${otp}`
+            otpEmailTemplate({name:user.nick_name, otp})
         );
 
         return { message: "OTP sent successfully" };

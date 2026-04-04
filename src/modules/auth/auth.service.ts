@@ -51,7 +51,7 @@ export class AuthService {
         if(!user.email_verified){
             this.sendEmailVerificationCode(user.id, user.name!, user.email)
             return {
-                message:"Verification email sent to your email. KIndly Berifiy yoour email",
+                message:"Verification email sent to your email. Kindly Verify your email",
                 is_email_verified:user.email_verified,
                 role:user.role
             }
