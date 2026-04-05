@@ -49,14 +49,14 @@ export class AuthService {
             throw new BadRequestException("Your account has been deleted. If you think this is a mistake, please contact support.");
         }
 
-        if(!user.email_verified){
-            this.sendEmailVerificationCode(user.id, user.name!, user.email)
-            return {
-                message:"Verification email sent to your email. Kindly Verify your email",
-                is_email_verified:user.email_verified,
-                role:user.role
-            }
-        }
+        // if(!user.email_verified){
+        //     this.sendEmailVerificationCode(user.id, user.name!, user.email)
+        //     return {
+        //         message:"Verification email sent to your email. Kindly Verify your email",
+        //         is_email_verified:user.email_verified,
+        //         role:user.role
+        //     }
+        // }
 
         if (!(await this.comparePassword(signInDto.password, user.password))) {
             throw new BadRequestException("Invalid credentials!");

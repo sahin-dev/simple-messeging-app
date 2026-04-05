@@ -72,7 +72,7 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
             client.emit(EMIT_EVENTS.SUCCESS, { message: "User Successfully Connected With Socket" })
 
-        } catch (err) {
+        } catch (err:any) {
             console.log(err)
             throw new WsException({ message: err.message })
 

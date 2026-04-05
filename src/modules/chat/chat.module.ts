@@ -4,11 +4,12 @@ import { ChatService } from './chat.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SocketGateway } from './gateway/chat.gateway';
 import { UserModule } from '../user/user.module';
+import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
-    imports:[UserModule],
+    imports:[UserModule, PrismaModule],
     controllers:[ChatController],
-    providers:[ChatService, PrismaService, SocketGateway],
+    providers:[ChatService, SocketGateway],
     exports:[ChatService, SocketGateway]
 })
 export class ChatModule implements OnModuleInit{

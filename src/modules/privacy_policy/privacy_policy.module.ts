@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { PrivacyPolicyController } from './privacypolicy.controller';
 import { PrivacyPolicyService } from './privacypolicy.service';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
-    imports:[],
+    imports:[PrismaModule],
     controllers:[PrivacyPolicyController],
-    providers:[PrivacyPolicyService,PrismaService]
+    providers:[PrivacyPolicyService]
 })
 export class PrivacyPolicyModule {}

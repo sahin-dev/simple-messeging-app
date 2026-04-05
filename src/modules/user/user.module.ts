@@ -5,11 +5,12 @@ import { UserService } from "./user.service";
 import { EncoderProvider } from "src/common/providres/encoder.provider";
 import { SMTPProvider } from "src/common/providres/smtp.provider";
 import { ChatService } from "../chat/chat.service";
+import { PrismaModule } from "../prisma/prisma.module";
 
 @Module({
-    imports: [],
+    imports: [PrismaModule],
     controllers: [UserController],
-    providers: [PrismaService, UserService, EncoderProvider, SMTPProvider, ChatService],
+    providers: [ UserService, EncoderProvider, SMTPProvider, ChatService],
     exports: [UserService, EncoderProvider]
 })
 

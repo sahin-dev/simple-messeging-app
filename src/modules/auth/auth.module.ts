@@ -13,6 +13,7 @@ import { JwtGuard } from "./guards/jwt.guard";
 import { APP_GUARD } from "@nestjs/core";
 import { RolesGuard } from "src/common/guards/roles.guards";
 import { ChatService } from "../chat/chat.service";
+import { PrismaModule } from "../prisma/prisma.module";
 @Module({
     imports: [JwtModule.registerAsync({
         global: true,
@@ -21,9 +22,9 @@ import { ChatService } from "../chat/chat.service";
             secret: jwtConfiguration.jwt_secret,
             signOptions: { expiresIn: (jwtConfiguration.expires_in as any) || '90d' }
         }),
-    })],
+    }), PrismaModule],
     controllers: [AuthController],
-    providers: [AuthService, UserService, EncoderProvider, PrismaService, SMTPProvider, ChatService,
+    providers: [AuthService, UserService, EncoderProvider, SMTPProvider, ChatService,
         { provide: APP_GUARD, useClass: JwtGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
     ],
