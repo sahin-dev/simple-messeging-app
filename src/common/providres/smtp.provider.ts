@@ -13,19 +13,24 @@ export class SMTPProvider {
         this.transporter = nodemailer.createTransport({
             host: this.mailerConfiguration.host,
             port: parseInt(this.mailerConfiguration.port!),
+            secure:false,
             auth:{
                 user: this.mailerConfiguration.user,
                 pass: this.mailerConfiguration.password
             }
         })
+
+        if(this.transporter){
+            console.log("SMTP transporter initialized successfully.");
+        }
     }
 
-    sendMail(to:string, subject:string, body:string){
+    async sendMail(to:string, subject:string, body:string){
         if(!this.transporter){
             throw new Error("transporter does not initialized yet!")
         }
 
-        this.transporter.sendMail({
+        await this.transporter.sendMail({
             to,
             subject,
             html:body

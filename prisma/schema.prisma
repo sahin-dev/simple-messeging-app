@@ -5,7 +5,7 @@ generator client {
   provider      = "prisma-client"
   output        = "../generated/prisma"
   moduleFormat  = "cjs"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -28,6 +28,8 @@ model User {
   is_blocked  Boolean  @default(false)
   is_deleted  Boolean  @default(false)
   email_verified Boolean @default(false)
+  account_type AccountType @default(FREE)
+  qr_code String?
 
   otp                    String?
   otp_expires            DateTime?
@@ -39,9 +41,13 @@ model User {
   chatRooms_user2 ChatRoom[]  @relation("user2")
   blockLists      BlockList[] @relation("user")
   blockListsBy    BlockList[] @relation("blocked_user")
-
   sentMessages     Chat[] @relation("sender")
   receivedMessages Chat[] @relation("receiver")
+
+  groupChatRooms GroupChatRoomMember[]
+  groupChats     GroupChat[] @relation("sender")
+  userRatingsGiven UserRating[] @relation("rater")
+  userRatingsReceived UserRating[] @relation("ratee")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -67,6 +73,55 @@ model ChatRoom {
   @@map("chat_rooms")
 }
 
+model GroupChatRoom {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  name String
+  image String?
+  is_deleted Boolean @default(false)
+  group_members_count Int @default(0)
+  members GroupChatRoomMember[]
+
+  chats GroupChat[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("group_chat_rooms")
+}
+
+model GroupChatRoomMember {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  groupChatRoom_id String @db.ObjectId
+  user_id String @db.ObjectId
+  last_read_message_id String? @db.ObjectId
+  group_role GroupRole @default(GROUP_MEMBER)
+
+  groupChatRoom GroupChatRoom @relation(fields: [groupChatRoom_id], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+ 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([groupChatRoom_id, user_id])
+  @@map("group_chat_room_members")
+}
+
+model GroupChat {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  groupChatRoom_id String @db.ObjectId
+  sender_id String @db.ObjectId
+  message String
+  type MessageType @default(TEXT)
+
+  groupChatRoom GroupChatRoom @relation(fields: [groupChatRoom_id], references: [id], onDelete: Cascade)
+  sender User @relation(fields: [sender_id], references: [id], onDelete: Cascade, name: "sender")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("group_chats")
+}
+
 model Chat {
   id           String      @id @default(auto()) @map("_id") @db.ObjectId
   chatRoom_id  String      @db.ObjectId
@@ -86,6 +141,51 @@ model Chat {
 
   @@map("chats")
 }
+
+model PresetMessage {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  message String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("preset_messages")
+}
+
+model UsefullNumber {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  title String
+  phone String
+  location location
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("useful_numbers")
+}
+
+type location {
+  latitude Float
+  longitude Float
+}
+
+
+model UserRating {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  rater_id String @db.ObjectId
+  ratee_id String @db.ObjectId
+  rating Int
+  status RatingStatus @default(PENDING)
+
+  rater User @relation("rater", fields: [rater_id], references: [id], onDelete: Cascade)
+  ratee User @relation("ratee", fields: [ratee_id], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([rater_id, ratee_id])
+  @@map("user_ratings")
+}
+
+
 
 model BlockList {
   id String @id @default(auto()) @map("_id") @db.ObjectId
@@ -120,6 +220,19 @@ enum MessageType {
   TEXT
 }
 
+model Point {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  name String
+  description String?
+  latitude Float
+  longitude Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("points")
+}
+
 model BlackListedWord {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
@@ -131,6 +244,10 @@ model BlackListedWord {
   @@map("blacklisted_words")
 }
 
+enum JobType {
+  SendWelcomeEmail
+}
+
 enum UserRole {
   USER
   ADMIN
@@ -140,4 +257,20 @@ enum PolicyType {
   PrivacyPolicy
   Terms
   More
+}
+
+enum GroupRole {
+  GROUP_ADMIN
+  GROUP_MEMBER
+}
+
+enum RatingStatus {
+  PUBLISHED
+  REJECTED
+  PENDING
+}
+
+enum AccountType {
+  FREE
+  PREMIUM
 }

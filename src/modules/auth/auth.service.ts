@@ -109,7 +109,7 @@ export class AuthService {
         const existingNickName = await this.prismaService.user.findUnique({where:{nick_name:registerUserDto.nick_name}})
 
         if(existingNickName){
-            throw new ConflictException("Nick name already exist.Try another one.")
+            throw new ConflictException("Nick name already taken.Try another one.")
         }
 
         const existingEmail= await this.prismaService.user.findUnique({
@@ -129,30 +129,25 @@ export class AuthService {
             throw new ConflictException('This licence ID is already associated with 5 accounts.');
         }
 
-        // Check if nick_name already exists
-        const existingNickname = await this.prismaService.user.findFirst({
-            where: { nick_name: registerUserDto.nick_name }
-        });
-
-        if (existingNickname) {
-            throw new ConflictException('This nickname is already taken!');
-        }
-
         if (registerUserDto.password !== registerUserDto.confirmPassword) {
             throw new BadRequestException("Password and confirm password do not match");
         }
 
         const { confirmPassword, ...userData } = registerUserDto;
         const user = await this.userService.addUser(userData);
+        
+        
+        this.smtpProvider.sendMail(
+        user.email,
+        "Welcome to PLATEChatter",
+        welcomeEmailTemplate({ name: user.name || user.nick_name || "User" })
+        ).then(()=> {
+            this.logger.log(`Welcome email sent to ${user.email}`)
+        }).catch(err => {
+            this.logger.error(`Failed to send welcome email to ${user.email}: ${err.message}`)
+         })
 
-         this.smtpProvider.sendMail(
-            user.email,
-            "Welcome to PLATEChatter",
-            welcomeEmailTemplate({ name: user.name || user.nick_name || "User" })
-        );
-
-        // this.sendEmailVerificationCode(user.id, user.name!, user.email)
-
+      
         return { message: "Verification email sent to the email", user: { id: user.id, licence_id: user.licence_id, nick_name: user.nick_name,is_email_verified:user.email_verified } };
     }
 

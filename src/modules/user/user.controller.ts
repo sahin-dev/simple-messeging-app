@@ -21,6 +21,7 @@ import { BlockUnblockDto } from "./dtos/block-unblock.dto";
 import { TogggleBlockUserDto } from "./dtos/block-user.dto";
 import { DeleteAccountDto } from "./dtos/delete-account.dto";
 
+
 @Controller({
     path: "users",
 })
@@ -177,5 +178,12 @@ export class UserController {
     async helpSupport(){
         const helpMessage = await this.userService.helpAndSupport();
         return { message: helpMessage };
+    }
+
+    @Get("generate-code")
+    async getQrCodeForUser(@Req() request:Request){
+        const payload = request['payload'] as TokenPayload;
+        const qrcode = await this.userService.generateQrCodeForUser(payload.id)
+        return { qr_code: qrcode }
     }
 }

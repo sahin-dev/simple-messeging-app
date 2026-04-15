@@ -11,6 +11,7 @@ import { ChatService } from "../chat/chat.service";
 import { PaginationDto } from "src/common/dtos/pagination.dto";
 import { SocketGateway } from "../chat/gateway/chat.gateway";
 import otpEmailTemplate from "src/common/templates/emailVerification.template";
+import { QrCodeGeneratorProvider } from "./providers/qrCodeGenerator.provider";
 
 @Injectable()
 export class UserService {
@@ -20,6 +21,7 @@ export class UserService {
         private readonly encoder: EncoderProvider,
         private readonly smtpProvider: SMTPProvider,
         private readonly chatService: ChatService,
+        private readonly qrCodeGenerator: QrCodeGeneratorProvider
     ) { }
 
     /**
@@ -468,9 +470,6 @@ export class UserService {
             throw new NotFoundException("User not found");
         }
 
-        console.log(userId)
-        console.log(blockedUserId)
-
         if (user.id === blockedUserId) {
             throw new BadRequestException("You cannot block yourself");
         }
@@ -608,6 +607,34 @@ export class UserService {
 
         return user
     }
+
+    async generateUserLink(userId:string){
+        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000"
+        return `${frontendUrl}?id=${userId}`
+    }
+
+    async generateQrCodeForUser(userId:string){
+
+        const user = await this.prismaService.user.findUnique({where:{id:userId}})
+        if(!user){
+            throw new NotFoundException("User not found")
+        }
+
+        // if(user.qr_code){
+        //     return user.qr_code
+        // }
+
+        const link = await this.generateUserLink(userId)
+        const qrcode = await this.qrCodeGenerator.generateQrCode(link)
+
+        await this.prismaService.user.update({
+            where:{id:userId},
+            data:{qr_code:qrcode}
+        })
+        return qrcode
+
+    }
+
 
 }
 

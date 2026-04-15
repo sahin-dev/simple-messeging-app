@@ -19,6 +19,7 @@ export class PrismaService extends PrismaClient  implements OnModuleInit, OnModu
     }
 
     onModuleDestroy() {
+        this.logger.log("Disconnecting from database...")
         this.$disconnect()
     }
 }
