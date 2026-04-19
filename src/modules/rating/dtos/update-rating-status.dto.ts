@@ -1,5 +1,8 @@
-export class UpdateRatingStatusDto {
+import { IsEnum, IsNotEmpty } from 'class-validator';
+import { RatingStatus } from 'generated/prisma/enums';
 
-    ratingId:string
-    status:"PUBLISHED" | "REJECTED" | "PENDING"
+export class UpdateRatingStatusDto {
+  @IsEnum(RatingStatus)
+  @IsNotEmpty()
+  status: RatingStatus;
 }

@@ -1,14 +1,14 @@
-import { Module,ModuleMetadata } from "@nestjs/common";
-import { RatingService } from "./rating.service";
-import { RatingController } from "./rating.controller";
+import { Module, ModuleMetadata } from '@nestjs/common';
+import { RatingService } from './rating.service';
+import { RatingController } from './rating.controller';
+import { PrismaModule } from '../prisma/prisma.module';
 
 const metadata: ModuleMetadata = {
-    controllers:[RatingController],
-    providers:[RatingService]   
-}
-
+  imports: [PrismaModule],
+  controllers: [RatingController],
+  providers: [RatingService],
+  exports: [RatingService],
+};
 
 @Module(metadata)
-export class RatingModule {
-
-}
+export class RatingModule {}
