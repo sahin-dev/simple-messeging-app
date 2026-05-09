@@ -36,6 +36,25 @@ export class UsefulNumberController {
     return this.usefulNumberService.searchUsefulNumbers(query, page, limit);
   }
 
+  @Get('nearby')
+  @HttpCode(200)
+  @ResponseMessage('Nearby useful numbers fetched successfully')
+  async searchNearbyUsefulNumbers(
+    @Query('latitude') latitude: number,
+    @Query('longitude') longitude: number,
+    @Query('radiusInMeters') radiusInMeters: number = 1000,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    return this.usefulNumberService.searchNearbyUsefulNumbers(
+      parseFloat(latitude.toString()),
+      parseFloat(longitude.toString()),
+      parseFloat(radiusInMeters.toString()),
+      page,
+      limit,
+    );
+  }
+
   @Get(':id')
   @HttpCode(200)
   @ResponseMessage('Useful number fetched successfully')

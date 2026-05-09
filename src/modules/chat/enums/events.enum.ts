@@ -8,8 +8,18 @@ export enum EMIT_EVENTS  {
     ALL_CHAT_ROOMS = "all-chat-rooms",
     ALL_MESSAGES = "all-messages",
     SUCCESS = "success",
-    ERROR = "error"
+    ERROR = "error",
 
+    // Group Chat Events
+    GROUP_MESSAGE_SENT = "group-message-sent",
+    GROUP_NEW_MESSAGE = "group-new-message",
+    GROUP_CHAT_ROOMS = "group-chat-rooms",
+    GROUP_MESSAGES = "group-messages",
+    GROUP_MEMBER_ADDED = "group-member-added",
+    GROUP_MEMBER_REMOVED = "group-member-removed",
+    GROUP_UPDATED = "group-updated",
+    GROUP_USER_TYPING = "group-user-typing",
+    GROUP_USER_STOPPED_TYPING = "group-user-stopped-typing",
 }
 
 export enum SUBSCRIBED_EVENTS {
@@ -19,4 +29,17 @@ export enum SUBSCRIBED_EVENTS {
     SEND_FILE = "send-file",
 
     MESSAGE_RECEIVED = "message-received",
+
+    // Group Chat Events
+    CREATE_GROUP_CHAT = "create-group-chat",
+    SEND_GROUP_MESSAGE = "send-group-message",
+    JOIN_GROUP_CHAT = "join-group-chat",
+    LEAVE_GROUP_CHAT = "leave-group-chat",
+    FETCH_GROUP_CHAT_ROOMS = "fetch-group-chat-rooms",
+    FETCH_GROUP_MESSAGES = "fetch-group-messages",
+    ADD_GROUP_MEMBER = "add-group-member",
+    REMOVE_GROUP_MEMBER = "remove-group-member",
+    UPDATE_GROUP_CHAT = "update-group-chat",
+    GROUP_TYPING = "group-typing",
+    GROUP_STOP_TYPING = "group-stop-typing",
 }

@@ -8,6 +8,7 @@ export class PresetMessageService {
   constructor(private readonly prismaService: PrismaService) {}
 
   async createPresetMessage(createPresetMessageDto: CreatePresetMessageDto) {
+    
     return this.prismaService.presetMessage.create({
       data: {
         message: createPresetMessageDto.message,

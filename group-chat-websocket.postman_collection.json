@@ -1,0 +1,199 @@
+{
+  "info": {
+    "name": "Group Chat WebSocket Events",
+    "description": "Socket.IO WebSocket collection for all group chat events.\n\nConnection: ws://localhost:3000?userId={{userId}}\n\nEach request documents the event name to emit, the payload, and the expected server response events.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "your-user-id",
+      "type": "string"
+    },
+    {
+      "key": "groupChatRoomId",
+      "value": "your-group-chat-room-id",
+      "type": "string"
+    },
+    {
+      "key": "targetMemberId",
+      "value": "target-member-id",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Connection",
+      "item": [
+        {
+          "name": "Connect to WebSocket",
+          "request": {
+            "description": "Establish Socket.IO connection.\n\n**Event:** Connection handshake\n\n**Query Params:**\n- userId: string (required)\n\n**Response Event:** `success`\n```json\n{\n  \"message\": \"User Successfully Connected With Socket\"\n}\n```\n\n**Error:** `exception` if user not found.",
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/socket.io/?userId={{userId}}&EIO=4&transport=websocket",
+              "host": ["{{baseUrl}}"],
+              "path": ["socket.io", ""],
+              "query": [
+                { "key": "userId", "value": "{{userId}}" },
+                { "key": "EIO", "value": "4" },
+                { "key": "transport", "value": "websocket" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Group Management",
+      "item": [
+        {
+          "name": "Create Group Chat",
+          "request": {
+            "description": "Create a new group chat room.\n\n**Emit Event:** `create-group-chat`\n\n**Payload:**\n```json\n{\n  \"name\": \"My Group\",\n  \"image\": \"https://example.com/group-image.png\",\n  \"memberIds\": [\"member-id-1\", \"member-id-2\"]\n}\n```\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| name | string | ✅ | Group name |\n| image | string | ❌ | Group avatar URL |\n| memberIds | string[] | ✅ | Array of user IDs to add |\n\n**Response Events:**\n\n1. `success` → to creator:\n```json\n{\n  \"message\": \"Group chat created successfully\",\n  \"groupChat\": {\n    \"id\": \"group-id\",\n    \"name\": \"My Group\",\n    \"image\": \"https://example.com/group-image.png\",\n    \"group_members_count\": 3,\n    \"members\": [\n      {\n        \"id\": \"membership-id\",\n        \"user_id\": \"user-id\",\n        \"group_role\": \"GROUP_ADMIN\",\n        \"user\": {\n          \"id\": \"user-id\",\n          \"nick_name\": \"John\",\n          \"avatar\": \"avatar-url\"\n        }\n      }\n    ]\n  }\n}\n```\n\n2. `success` → to each member:\n```json\n{\n  \"message\": \"You've been added to group: My Group\",\n  \"groupChat\": { ... }\n}\n```",
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Group Chat",
+          "request": {
+            "description": "Update group chat room details. Only admin can update.\n\n**Emit Event:** `update-group-chat`\n\n**Payload:**\n```json\n{\n  \"groupChatRoomId\": \"{{groupChatRoomId}}\",\n  \"updateData\": {\n    \"name\": \"Updated Group Name\",\n    \"image\": \"https://example.com/new-image.png\"\n  }\n}\n```\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| groupChatRoomId | string | ✅ | Target group ID |\n| updateData.name | string | ❌ | New group name |\n| updateData.image | string | ❌ | New group image URL |\n\n**Response Events:**\n\n1. `group-updated` → to all group members:\n```json\n{\n  \"message\": \"Group information updated\",\n  \"updatedGroup\": {\n    \"id\": \"group-id\",\n    \"name\": \"Updated Group Name\",\n    \"image\": \"new-image-url\",\n    \"members\": [ ... ]\n  },\n  \"updatedBy\": \"user-id\",\n  \"groupChatRoomId\": \"group-id\"\n}\n```\n\n2. `success` → to requester:\n```json\n{\n  \"message\": \"Group updated successfully\",\n  \"updatedGroup\": { ... }\n}\n```",
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            }
+          }
+        },
+        {
+          "name": "Join Group Chat",
+          "request": {
+            "description": "Join a group chat Socket.IO room.\n\n**Emit Event:** `join-group-chat`\n\n**Payload:**\n```json\n{\n  \"groupChatRoomId\": \"{{groupChatRoomId}}\"\n}\n```\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| groupChatRoomId | string | ✅ | Group to join |\n\n**Response Events:**\n\n1. `success` → to all group members:\n```json\n{\n  \"message\": \"User <userId> joined the group\",\n  \"userId\": \"user-id\",\n  \"groupChatRoomId\": \"group-id\"\n}\n```\n\n2. `success` → to requester:\n```json\n{\n  \"message\": \"Successfully joined group chat\"\n}\n```",
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            }
+          }
+        },
+        {
+          "name": "Leave Group Chat",
+          "request": {
+            "description": "Leave a group chat Socket.IO room.\n\n**Emit Event:** `leave-group-chat`\n\n**Payload:**\n```json\n{\n  \"groupChatRoomId\": \"{{groupChatRoomId}}\"\n}\n```\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| groupChatRoomId | string | ✅ | Group to leave |\n\n**Response Events:**\n\n1. `success` → to remaining members:\n```json\n{\n  \"message\": \"User <userId> left the group\",\n  \"userId\": \"user-id\",\n  \"groupChatRoomId\": \"group-id\"\n}\n```\n\n2. `success` → to requester:\n```json\n{\n  \"message\": \"Successfully left group chat\"\n}\n```",
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Members",
+      "item": [
+        {
+          "name": "Add Group Member",
+          "request": {
+            "description": "Add a new member to the group. Only admin can add.\n\n**Emit Event:** `add-group-member`\n\n**Payload:**\n```json\n{\n  \"groupChatRoomId\": \"{{groupChatRoomId}}\",\n  \"newMemberId\": \"{{targetMemberId}}\"\n}\n```\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| groupChatRoomId | string | ✅ | Target group ID |\n| newMemberId | string | ✅ | User ID to add |\n\n**Response Events:**\n\n1. `group-member-added` → to all group members:\n```json\n{\n  \"message\": \"<nick_name> was added to the group\",\n  \"newMember\": {\n    \"id\": \"membership-id\",\n    \"user_id\": \"new-member-id\",\n    \"group_role\": \"GROUP_MEMBER\",\n    \"user\": {\n      \"id\": \"new-member-id\",\n      \"nick_name\": \"Jane\",\n      \"avatar\": \"avatar-url\"\n    }\n  },\n  \"groupChatRoomId\": \"group-id\"\n}\n```\n\n2. `success` → to the new member:\n```json\n{\n  \"message\": \"You've been added to a group\",\n  \"groupChatRoomId\": \"group-id\",\n  \"newMember\": { ... }\n}\n```\n\n3. `success` → to requester:\n```json\n{\n  \"message\": \"Member added successfully\",\n  \"newMember\": { ... }\n}\n```",
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            }
+          }
+        },
+        {
+          "name": "Remove Group Member",
+          "request": {
+            "description": "Remove a member from the group. Only admin can remove others.\n\n**Emit Event:** `remove-group-member`\n\n**Payload:**\n```json\n{\n  \"groupChatRoomId\": \"{{groupChatRoomId}}\",\n  \"memberId\": \"{{targetMemberId}}\"\n}\n```\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| groupChatRoomId | string | ✅ | Target group ID |\n| memberId | string | ✅ | User ID to remove |\n\n**Response Events:**\n\n1. `group-member-removed` → to all group members:\n```json\n{\n  \"message\": \"Member was removed from the group\",\n  \"memberId\": \"removed-member-id\",\n  \"removedBy\": \"admin-user-id\",\n  \"groupChatRoomId\": \"group-id\"\n}\n```\n\n2. `success` → to the removed member:\n```json\n{\n  \"message\": \"You've been removed from a group\",\n  \"groupChatRoomId\": \"group-id\"\n}\n```\n\n3. `success` → to requester:\n```json\n{\n  \"message\": \"Member removed successfully\"\n}\n```",
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Messaging",
+      "item": [
+        {
+          "name": "Send Group Message",
+          "request": {
+            "description": "Send a message to a group chat.\n\n**Emit Event:** `send-group-message`\n\n**Payload:**\n```json\n{\n  \"groupChatRoomId\": \"{{groupChatRoomId}}\",\n  \"message\": \"Hello group!\"\n}\n```\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| groupChatRoomId | string | ✅ | Target group ID |\n| message | string | ✅ | Message content |\n\n**Response Events:**\n\n1. `group-new-message` → to all group members (broadcast):\n```json\n{\n  \"id\": \"message-id\",\n  \"groupChatRoom_id\": \"group-id\",\n  \"sender_id\": \"user-id\",\n  \"message\": \"Hello group!\",\n  \"createdAt\": \"2026-05-06T03:00:00.000Z\",\n  \"sender\": {\n    \"id\": \"user-id\",\n    \"nick_name\": \"John\",\n    \"avatar\": \"avatar-url\"\n  },\n  \"groupChatRoomId\": \"group-id\",\n  \"is_mine\": false\n}\n```\n\n2. `group-message-sent` → to sender:\n```json\n{\n  \"id\": \"message-id\",\n  \"groupChatRoom_id\": \"group-id\",\n  \"sender_id\": \"user-id\",\n  \"message\": \"Hello group!\",\n  \"createdAt\": \"2026-05-06T03:00:00.000Z\",\n  \"sender\": { ... },\n  \"is_mine\": true\n}\n```\n\n3. `group-user-stopped-typing` → to all group members:\n```json\n{\n  \"userId\": \"user-id\",\n  \"groupChatRoomId\": \"group-id\"\n}\n```",
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            }
+          }
+        },
+        {
+          "name": "Fetch Group Messages",
+          "request": {
+            "description": "Fetch paginated messages for a group chat.\n\n**Emit Event:** `fetch-group-messages`\n\n**Payload:**\n```json\n{\n  \"groupChatRoomId\": \"{{groupChatRoomId}}\",\n  \"pagination\": {\n    \"page\": 1,\n    \"limit\": 10\n  }\n}\n```\n\n| Field | Type | Required | Default | Description |\n|-------|------|----------|---------|-------------|\n| groupChatRoomId | string | ✅ | - | Target group ID |\n| pagination.page | number | ❌ | 1 | Page number |\n| pagination.limit | number | ❌ | 10 | Items per page |\n\n**Response Event:** `group-messages`\n```json\n{\n  \"messages\": [\n    {\n      \"id\": \"message-id\",\n      \"groupChatRoom_id\": \"group-id\",\n      \"sender_id\": \"user-id\",\n      \"message\": \"Hello!\",\n      \"createdAt\": \"2026-05-06T03:00:00.000Z\",\n      \"sender\": {\n        \"id\": \"user-id\",\n        \"nick_name\": \"John\",\n        \"avatar\": \"avatar-url\"\n      },\n      \"is_mine\": true\n    }\n  ],\n  \"total\": 25\n}\n```",
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rooms",
+      "item": [
+        {
+          "name": "Fetch Group Chat Rooms",
+          "request": {
+            "description": "Fetch all group chat rooms the user belongs to. Also auto-joins all group Socket.IO rooms.\n\n**Emit Event:** `fetch-group-chat-rooms`\n\n**Payload:**\n```json\n{\n  \"page\": 1,\n  \"limit\": 10\n}\n```\n\n| Field | Type | Required | Default | Description |\n|-------|------|----------|---------|-------------|\n| page | number | ❌ | 1 | Page number |\n| limit | number | ❌ | 10 | Items per page |\n\n**Response Event:** `group-chat-rooms`\n```json\n{\n  \"rooms\": [\n    {\n      \"id\": \"group-id\",\n      \"name\": \"My Group\",\n      \"image\": \"image-url\",\n      \"group_members_count\": 5,\n      \"createdAt\": \"2026-05-06T03:00:00.000Z\",\n      \"updatedAt\": \"2026-05-06T03:00:00.000Z\",\n      \"members\": [\n        {\n          \"id\": \"membership-id\",\n          \"user_id\": \"user-id\",\n          \"group_role\": \"GROUP_ADMIN\",\n          \"user\": {\n            \"id\": \"user-id\",\n            \"nick_name\": \"John\",\n            \"avatar\": \"avatar-url\"\n          }\n        }\n      ],\n      \"chats\": [\n        {\n          \"id\": \"message-id\",\n          \"message\": \"Last message\",\n          \"createdAt\": \"2026-05-06T03:00:00.000Z\",\n          \"sender\": {\n            \"id\": \"user-id\",\n            \"nick_name\": \"John\"\n          }\n        }\n      ]\n    }\n  ],\n  \"total\": 3\n}\n```",
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Typing Indicators",
+      "item": [
+        {
+          "name": "Group Typing",
+          "request": {
+            "description": "Notify group members that you are typing.\n\n**Emit Event:** `group-typing`\n\n**Payload:**\n```json\n{\n  \"groupChatRoomId\": \"{{groupChatRoomId}}\"\n}\n```\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| groupChatRoomId | string | ✅ | Target group ID |\n\n**Response Event:** `group-user-typing` → to all group members:\n```json\n{\n  \"userId\": \"user-id\",\n  \"groupChatRoomId\": \"group-id\"\n}\n```",
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            }
+          }
+        },
+        {
+          "name": "Group Stop Typing",
+          "request": {
+            "description": "Notify group members that you stopped typing.\n\n**Emit Event:** `group-stop-typing`\n\n**Payload:**\n```json\n{\n  \"groupChatRoomId\": \"{{groupChatRoomId}}\"\n}\n```\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| groupChatRoomId | string | ✅ | Target group ID |\n\n**Response Event:** `group-user-stopped-typing` → to all group members:\n```json\n{\n  \"userId\": \"user-id\",\n  \"groupChatRoomId\": \"group-id\"\n}\n```",
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

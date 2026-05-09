@@ -510,8 +510,6 @@ export class UserService {
         if(!blockList){
             throw new BadRequestException("You have not blocked this user")
         }
-
-       
         await this.prismaService.blockList.delete({
             where:{
                 user_id_blocked_user_id:{
@@ -620,9 +618,9 @@ export class UserService {
             throw new NotFoundException("User not found")
         }
 
-        // if(user.qr_code){
-        //     return user.qr_code
-        // }
+        if(user.qr_code){
+            return user.qr_code
+        }
 
         const link = await this.generateUserLink(userId)
         const qrcode = await this.qrCodeGenerator.generateQrCode(link)

@@ -156,6 +156,7 @@ model UsefullNumber {
   title String
   phone String
   location location
+  geolocation geolocation?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@map("useful_numbers")
@@ -164,6 +165,11 @@ model UsefullNumber {
 type location {
   latitude Float
   longitude Float
+}
+
+type geolocation {
+  type String
+  coordinates Float[]
 }
 
 

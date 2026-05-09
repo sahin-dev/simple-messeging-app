@@ -54,7 +54,7 @@ export class JwtGuard implements CanActivate {
             return true
 
         } catch (err) {
-            throw err
+            throw new BadRequestException("Invalid token")
         }
 
     }

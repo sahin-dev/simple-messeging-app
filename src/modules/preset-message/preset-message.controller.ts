@@ -12,7 +12,8 @@ export class PresetMessageController {
   @HttpCode(201)
   @ResponseMessage('Preset message created successfully')
   async createPresetMessage(@Body() createPresetMessageDto: CreatePresetMessageDto) {
-    return this.presetMessageService.createPresetMessage(createPresetMessageDto);
+    const createdPresetMessage = await this.presetMessageService.createPresetMessage(createPresetMessageDto);
+    return createdPresetMessage;
   }
 
   @Get()

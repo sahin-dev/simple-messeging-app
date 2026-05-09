@@ -6,7 +6,14 @@ export class SendMessageDto {
     @IsMongoId()
     @IsString()
     @IsNotEmpty()
+    @IsOptional()
     receiver_id:string
+    
+    @IsMongoId()
+    @IsString()
+    @IsNotEmpty()
+    @IsOptional()
+    room_id:string
 
     @IsString()
     @IsNotEmpty()

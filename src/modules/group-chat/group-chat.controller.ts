@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Put, Delete, Body, Param, Query, Req, HttpCode } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Body, Param, Query, Req, HttpCode, Patch } from '@nestjs/common';
 import { GroupChatService } from './group-chat.service';
 import { CreateGroupChatRoomDto } from './dtos/create-group-chat-room.dto';
 import { SendGroupMessageDto } from './dtos/send-group-message.dto';
@@ -7,7 +7,7 @@ import { PaginationDto } from './dtos/pagination.dto';
 import { TokenPayload } from '../auth/types/TokenPayload.type';
 import { ResponseMessage } from 'src/common/decorators/apiResponseMessage.decorator';
 
-@Controller('group-chat')
+@Controller('group')
 export class GroupChatController {
   constructor(private readonly groupChatService: GroupChatService) {}
 
@@ -80,7 +80,7 @@ export class GroupChatController {
     return this.groupChatService.removeGroupMember(roomId, payload.id, memberId);
   }
 
-  @Put('room/:roomId')
+  @Patch('room/:roomId')
   @HttpCode(200)
   @ResponseMessage('Group chat room updated successfully')
   async updateGroupChatRoom(
