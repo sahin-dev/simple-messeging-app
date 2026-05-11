@@ -48,6 +48,7 @@ model User {
   groupChats     GroupChat[] @relation("sender")
   userRatingsGiven UserRating[] @relation("rater")
   userRatingsReceived UserRating[] @relation("ratee")
+  parkingReports ParkingReport[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -250,6 +251,31 @@ model BlackListedWord {
   @@map("blacklisted_words")
 }
 
+model ParkingReport {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  
+  user_id String @db.ObjectId
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  description String?
+  latitude Float
+  longitude Float
+  
+  parking_type ParkingType
+  parking_cost ParkingCost
+  electric_charging Boolean @default(false)
+  disabled_facility Boolean @default(false)
+  disabled_facility_location DisabledFacilityLocation @default(NONE)
+  
+  is_active Boolean @default(true)
+  expiresAt DateTime
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("parking_reports")
+}
+
 enum JobType {
   SendWelcomeEmail
 }
@@ -279,4 +305,23 @@ enum RatingStatus {
 enum AccountType {
   FREE
   PREMIUM
+}
+
+enum ParkingType {
+  SPOT
+  STREET
+  GARAGE
+  LOT
+}
+
+enum ParkingCost {
+  FREE
+  PAID
+}
+
+enum DisabledFacilityLocation {
+  TOP
+  RIGHT
+  BACK
+  NONE
 }

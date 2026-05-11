@@ -6,6 +6,7 @@ import { RatingStatus } from 'generated/prisma/enums';
 
 @Injectable()
 export class RatingService {
+  
   constructor(private readonly prismaService: PrismaService) {}
 
   async createRating(userId: string, createRatingDto: CreateRatingDto) {

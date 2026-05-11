@@ -12,7 +12,6 @@ import jwtConfiguration from "src/config/jwt.config";
 import { JwtGuard } from "./guards/jwt.guard";
 import { APP_GUARD } from "@nestjs/core";
 import { RolesGuard } from "src/common/guards/roles.guards";
-import { ChatService } from "../chat/chat.service";
 import { PrismaModule } from "../prisma/prisma.module";
 import { UserModule } from "../user/user.module";
 @Module({
@@ -25,7 +24,7 @@ import { UserModule } from "../user/user.module";
         }),
     }), PrismaModule, UserModule],
     controllers: [AuthController],
-    providers: [AuthService, EncoderProvider, SMTPProvider, ChatService,
+    providers: [AuthService, EncoderProvider, SMTPProvider,
         { provide: APP_GUARD, useClass: JwtGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
     ],

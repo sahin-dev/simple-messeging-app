@@ -4,12 +4,14 @@ import { SendMessageDto } from "./dtos/send-message.dto";
 import { GetAllMessagesDto } from "./dtos/get-all-messages.dto";
 import { GetUserRoomsDto } from "./dtos/get-user-rooms.dto";
 import { SocketGateway } from "./gateway/chat.gateway";
+import { RatingService } from "../rating/rating.service";
 
 @Injectable()
 export class ChatService {
 
     constructor(
         private readonly prismaService: PrismaService,
+        private readonly ratingService: RatingService,
     ) { }
 
     /**
@@ -127,7 +129,7 @@ export class ChatService {
     }
 
     /**
-     * Get user's chat rooms
+     * Get user's chat rooms (both one-to-one and group)
      * @param userId 
      * @param getUserRoomsDto 
      * @returns 
@@ -136,95 +138,201 @@ export class ChatService {
         const skip = (getUserRoomsDto.page - 1) * getUserRoomsDto.limit;
 
         console.log("User id", userId)
-        const [rooms, total] = await Promise.all([
-            this.prismaService.chatRoom.findMany({
-                where: {
-                    OR: [
-                        { user1_id: userId },
-                        { user2_id: userId }
-                    ]
-                },
-                include: {
-                    user1: {
-                        select: {
-                            id: true,
-                            nick_name: true,
-                            licence_id: true,
-                            avatar: true,
+
+        // Fetch one-to-one chat rooms and group chat rooms in parallel
+        const [oneToOneData, groupData] = await Promise.all([
+            // One-to-one rooms
+            Promise.all([
+                this.prismaService.chatRoom.findMany({
+                    where: {
+                        OR: [
+                            { user1_id: userId },
+                            { user2_id: userId }
+                        ]
+                    },
+                    include: {
+                        user1: {
+                            select: {
+                                id: true,
+                                nick_name: true,
+                                licence_id: true,
+                                avatar: true,
+                            },
+                        
                         },
-                    
-                    },
-                    user2: {
-                        select: {
-                            id: true,
-                            nick_name: true,
-                            licence_id: true,
-                            avatar: true,
-                        }
-                    },
-                    chats: {
-                        orderBy: { createdAt: "desc" },
-                        take: 1,
-                        include: {
-                            sender: {
-                                select: {
-                                    id: true,
-                                    nick_name: true
+                        user2: {
+                            select: {
+                                id: true,
+                                nick_name: true,
+                                licence_id: true,
+                                avatar: true,
+                            }
+                        },
+                        chats: {
+                            orderBy: { createdAt: "desc" },
+                            take: 1,
+                            include: {
+                                sender: {
+                                    select: {
+                                        id: true,
+                                        nick_name: true
+                                    }
+                                }
+                            }
+                        },
+                        _count: {
+                            select: {
+                                chats: {
+                                    where: {
+                                        is_read: false,
+                                        receiver_id: userId
+                                    }
                                 }
                             }
                         }
                     },
-                    _count: {
-                        select: {
-                            chats: {
-                                where: {
-                                    is_read: false,
-                                    receiver_id: userId
+                    orderBy: {
+                        updatedAt: "desc"
+                    }
+                }),
+                this.prismaService.chatRoom.count({
+                    where: {
+                        OR: [
+                            { user1_id: userId },
+                            { user2_id: userId }
+                        ]
+                    }
+                })
+            ]),
+            // Group chat rooms
+            Promise.all([
+                this.prismaService.groupChatRoom.findMany({
+                    where: {
+                        members: {
+                            some: {
+                                user_id: userId
+                            }
+                        }
+                    },
+                    include: {
+                        members: {
+                            include: {
+                                user: {
+                                    select: {
+                                        id: true,
+                                        nick_name: true,
+                                        avatar: true,
+                                        licence_id: true
+                                    }
                                 }
+                            }
+                        },
+                        chats: {
+                            orderBy: { createdAt: "desc" },
+                            take: 1,
+                            include: {
+                                sender: {
+                                    select: {
+                                        id: true,
+                                        nick_name: true,
+                                        avatar: true
+                                    }
+                                }
+                            }
+                        },
+                        _count: {
+                            select: {
+                                chats: true
+                            }
+                        }
+                    },
+                    orderBy: {
+                        updatedAt: "desc"
+                    }
+                }),
+                this.prismaService.groupChatRoom.count({
+                    where: {
+                        members: {
+                            some: {
+                                user_id: userId
                             }
                         }
                     }
-                },
-                orderBy: {
-                    updatedAt: "desc"
-                },
-                skip,
-                take: getUserRoomsDto.limit
-            }),
-            this.prismaService.chatRoom.count({
-                where: {
-                    OR: [
-                        { user1_id: userId },
-                        { user2_id: userId }
-                    ]
-                }
-            })
+                })
+            ])
         ]);
 
-        const mappedRoom = rooms.map(async ({ user1, user2, _count, chats, ...room }) => {
-            // Get the other user (not the current user)
+        const [oneToOneRooms, oneToOneTotal] = oneToOneData;
+        const [groupRooms, groupTotal] = groupData;
+
+        // Map one-to-one rooms
+        const mappedOneToOneRooms = oneToOneRooms.map(async ({ user1, user2, _count, chats, ...room }) => {
             const otherUser = room.user1_id === userId ? user2 : user1;
             const latestChat = chats[0];
             const is_latest_message_mine = latestChat?.sender_id === userId;
             const isBlockedByMe = await this.prismaService.blockList.findFirst({where:{user_id:userId, blocked_user_id:otherUser.id}})
             const isBlockedMe = await this.prismaService.blockList.findFirst({where:{user_id:otherUser.id, blocked_user_id:userId}})
+            const rating = await this.ratingService.getAverageRatingForUser(otherUser.id)
             
+            Object.assign(otherUser, {rating:rating.averageRating})
 
-            
             return {
                 ...room,
+                type: 'ONE_TO_ONE',
                 otherUser,
                 latest_message: latestChat ? {
                     ...latestChat,
                     is_mine: is_latest_message_mine
                 } : null,
                 unread_count: _count.chats,
-                isBlockedByMe:isBlockedByMe? true:false,
-                isBlockedMe:isBlockedMe ? true:false
+
+                isBlockedByMe: isBlockedByMe ? true : false,
+                isBlockedMe: isBlockedMe ? true : false
             };
         });
 
-        return { rooms: await Promise.all(mappedRoom), total: total };
+        // Map group rooms
+        const mappedGroupRooms = groupRooms.map(({ members, chats, _count, ...room }) => {
+            const latestChat = chats[0];
+            const is_latest_message_mine = latestChat?.sender_id === userId;
+
+            return {
+                ...room,
+                type: 'GROUP',
+                group_members_count: members.length,
+                group_members: members.map(m => ({
+                    id: m.id,
+                    user_id: m.user_id,
+                    group_role: m.group_role,
+                    user: m.user
+                })),
+                latest_message: latestChat ? {
+                    id: latestChat.id,
+                    groupChatRoom_id: latestChat.groupChatRoom_id,
+                    sender_id: latestChat.sender_id,
+                    message: latestChat.message,
+                    createdAt: latestChat.createdAt,
+                    sender: {
+                        id: latestChat.sender.id,
+                        nick_name: latestChat.sender.nick_name,
+                        avatar: latestChat.sender.avatar
+                    },
+                    is_mine: is_latest_message_mine
+                } : null,
+                total_messages: _count.chats,
+                unread_count: 0
+            };
+        });
+
+        // Combine both room types and sort by updatedAt
+        const allMappedOneToOne = await Promise.all(mappedOneToOneRooms);
+        const allRooms = [...allMappedOneToOne, ...mappedGroupRooms]
+            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+            .slice(skip, skip + getUserRoomsDto.limit);
+
+        const total = oneToOneTotal + groupTotal;
+
+        return { rooms: allRooms, total };
     }
 
     /**

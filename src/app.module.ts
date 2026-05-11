@@ -12,6 +12,7 @@ import { UsefulNumberModule } from './modules/useful-number/useful-number.module
 import { BlocklistModule } from './modules/blocklist/blocklist.module';
 import { PointModule } from './modules/point/point.module';
 import { RatingModule } from './modules/rating/rating.module';
+import { ParkingReportModule } from './modules/parking-report/parking-report.module';
 
 import jwtConfig from './config/jwt.config';
 import { PrivacyPolicyModule } from './modules/privacy_policy/privacy_policy.module';
@@ -32,6 +33,7 @@ import mailerConfig from './config/mailer.config';
     BlocklistModule,
     PointModule,
     RatingModule,
+    ParkingReportModule,
     PrivacyPolicyModule,
     NotificationModule,
     BlacklistedwordModule
