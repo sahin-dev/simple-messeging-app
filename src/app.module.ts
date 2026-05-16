@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './modules/prisma/prisma.module';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { ChatModule } from './modules/chat/chat.module';
@@ -13,16 +13,18 @@ import { BlocklistModule } from './modules/blocklist/blocklist.module';
 import { PointModule } from './modules/point/point.module';
 import { RatingModule } from './modules/rating/rating.module';
 import { ParkingReportModule } from './modules/parking-report/parking-report.module';
+import { UserDocumentModule } from './modules/user-document/user-document.module';
 
 import jwtConfig from './config/jwt.config';
 import { PrivacyPolicyModule } from './modules/privacy_policy/privacy_policy.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { BlacklistedwordModule } from './modules/blacklistedword/blacklistedword.module';
 import mailerConfig from './config/mailer.config';
+import firebaseConfig from './config/firebase.config';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, load: [jwtConfig, mailerConfig] }),
+    ConfigModule.forRoot({ isGlobal: true, load: [jwtConfig, mailerConfig, firebaseConfig] }),
     PrismaModule,
     AuthModule,
     UserModule,
@@ -36,10 +38,11 @@ import mailerConfig from './config/mailer.config';
     ParkingReportModule,
     PrivacyPolicyModule,
     NotificationModule,
-    BlacklistedwordModule
+    BlacklistedwordModule,
+    UserDocumentModule,
   ],
   controllers: [AppController],
-  providers: [AppService
-  ],
+  providers: [AppService, ConfigService],
+  exports:[ConfigService]
 })
 export class AppModule { }

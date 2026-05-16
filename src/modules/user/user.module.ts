@@ -6,9 +6,10 @@ import { SMTPProvider } from "src/common/providres/smtp.provider";
 import { PrismaModule } from "../prisma/prisma.module";
 import { QrCodeGeneratorProvider } from "./providers/qrCodeGenerator.provider";
 import { ChatModule } from "../chat/chat.module";
+import { RatingModule } from "../rating/rating.module";
 
 @Module({
-    imports: [PrismaModule, forwardRef(() => ChatModule)],
+    imports: [PrismaModule, forwardRef(() => ChatModule), RatingModule],
     controllers: [UserController],
     providers: [ UserService, EncoderProvider, SMTPProvider, QrCodeGeneratorProvider],
     exports: [UserService, EncoderProvider, QrCodeGeneratorProvider, ChatModule]

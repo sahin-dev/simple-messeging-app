@@ -16,6 +16,7 @@ import { WsExceptionsFilter } from "src/common/exceptions/WsExceptionHandler";
 import { CreateGroupChatRoomDto } from "src/modules/group-chat/dtos/create-group-chat-room.dto";
 import { SendGroupMessageDto } from "src/modules/group-chat/dtos/send-group-message.dto";
 import { UpdateGroupChatRoomDto } from "src/modules/group-chat/dtos/update-group-chat-room.dto";
+import { AddGroupMembersDto } from "src/modules/group-chat/dtos/add-group-members.dto";
 import { PaginationDto } from "src/modules/group-chat/dtos/pagination.dto";
 
 
@@ -371,6 +372,51 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
             client.emit(EMIT_EVENTS.SUCCESS, {
                 message: "Member added successfully",
                 newMember
+            })
+        } catch (err: any) {
+            console.log(err)
+            throw new WsException({ message: err.message })
+        }
+    }
+
+    @SubscribeMessage(SUBSCRIBED_EVENTS.ADD_GROUP_MEMBERS)
+    async handleAddGroupMembers(
+        @MessageBody() data: { groupChatRoomId: string; memberIds: string[] },
+        @ConnectedSocket() client: Socket
+    ) {
+        try {
+            const userId = client.data.userId
+
+            const result = await this.groupChatService.addGroupMembers(
+                data.groupChatRoomId,
+                userId,
+                data.memberIds
+            )
+
+            const groupRoomId = this.generateGroupRoomId(data.groupChatRoomId)
+
+            // Notify all group members about the newly added members
+            result.members.forEach((newMember) => {
+                this.server.to(groupRoomId).emit(EMIT_EVENTS.GROUP_MEMBERS_ADDED, {
+                    message: `${newMember.user.nick_name} was added to the group`,
+                    newMember,
+                    groupChatRoomId: data.groupChatRoomId,
+                    addedCount: result.addedCount,
+                })
+
+                // Notify each new member individually
+                this.server.to(this.generateUserRoomId(newMember.user_id)).emit(EMIT_EVENTS.SUCCESS, {
+                    message: "You've been added to a group",
+                    groupChatRoomId: data.groupChatRoomId,
+                    newMember
+                })
+            })
+
+            client.emit(EMIT_EVENTS.SUCCESS, {
+                message: `${result.addedCount} member(s) added successfully`,
+                addedCount: result.addedCount,
+                alreadyMemberCount: result.alreadyMemberCount,
+                members: result.members
             })
         } catch (err: any) {
             console.log(err)

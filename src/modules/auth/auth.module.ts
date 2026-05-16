@@ -14,6 +14,7 @@ import { APP_GUARD } from "@nestjs/core";
 import { RolesGuard } from "src/common/guards/roles.guards";
 import { PrismaModule } from "../prisma/prisma.module";
 import { UserModule } from "../user/user.module";
+import { RatingModule } from "../rating/rating.module";
 @Module({
     imports: [JwtModule.registerAsync({
         global: true,
@@ -22,7 +23,7 @@ import { UserModule } from "../user/user.module";
             secret: jwtConfiguration.jwt_secret,
             signOptions: { expiresIn: (jwtConfiguration.expires_in as any) || '90d' }
         }),
-    }), PrismaModule, UserModule],
+    }), PrismaModule, UserModule, RatingModule],
     controllers: [AuthController],
     providers: [AuthService, EncoderProvider, SMTPProvider,
         { provide: APP_GUARD, useClass: JwtGuard },

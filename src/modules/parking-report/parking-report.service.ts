@@ -1,12 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateParkingReportDto, UpdateParkingReportDto } from './dtos';
+import { DisabledFacilityLocation } from 'generated/prisma/enums';
+import { NotificationDispatcherService } from '../notification/services/notification-dispatcher.service';
 
 @Injectable()
 export class ParkingReportService {
   private readonly EXPIRATION_TIME_MINUTES = 10;
+  private readonly logger = new Logger(ParkingReportService.name);
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly notificationDispatcherService: NotificationDispatcherService,
+  ) {}
 
   /**
    * Calculate expiration time (current time + 10 minutes)
@@ -41,14 +47,12 @@ export class ParkingReportService {
     const report = await this.prismaService.parkingReport.create({
       data: {
         user_id: userId,
-        description: createParkingReportDto.description,
         latitude: createParkingReportDto.latitude,
         longitude: createParkingReportDto.longitude,
-        parking_type: createParkingReportDto.parking_type,
         parking_cost: createParkingReportDto.parking_cost,
         electric_charging: createParkingReportDto.electric_charging,
         disabled_facility: createParkingReportDto.disabled_facility,
-        disabled_facility_location: createParkingReportDto.disabled_facility_location,
+        disabled_facility_location: DisabledFacilityLocation[createParkingReportDto.disabled_facility_location],
         expiresAt,
       },
       include: {
@@ -63,7 +67,18 @@ export class ParkingReportService {
       },
     });
 
-    return this.formatReportResponse(report);
+    const formattedReport = this.formatReportResponse(report);
+
+    // Trigger parking availability notification to nearby users
+    try {
+      this.notificationDispatcherService.dispatchParkingNotification(report).catch((err) => {
+        this.logger.error(`Failed to dispatch parking notification: ${err.message}`);
+      });
+    } catch (err:any) {
+      this.logger.error(`Error triggering parking notification: ${err.message}`);
+    }
+
+    return formattedReport;
   }
 
   /**
@@ -289,14 +304,12 @@ export class ParkingReportService {
     const updatedReport = await this.prismaService.parkingReport.update({
       where: { id },
       data: {
-        description: updateParkingReportDto.description,
         latitude: updateParkingReportDto.latitude,
         longitude: updateParkingReportDto.longitude,
-        parking_type: updateParkingReportDto.parking_type,
         parking_cost: updateParkingReportDto.parking_cost,
         electric_charging: updateParkingReportDto.electric_charging,
         disabled_facility: updateParkingReportDto.disabled_facility,
-        disabled_facility_location: updateParkingReportDto.disabled_facility_location,
+        disabled_facility_location: updateParkingReportDto.disabled_facility_location as DisabledFacilityLocation,
         is_active: updateParkingReportDto.is_active,
       },
       include: {

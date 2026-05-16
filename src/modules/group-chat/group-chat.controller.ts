@@ -3,6 +3,7 @@ import { GroupChatService } from './group-chat.service';
 import { CreateGroupChatRoomDto } from './dtos/create-group-chat-room.dto';
 import { SendGroupMessageDto } from './dtos/send-group-message.dto';
 import { UpdateGroupChatRoomDto } from './dtos/update-group-chat-room.dto';
+import { AddGroupMembersDto } from './dtos/add-group-members.dto';
 import { PaginationDto } from './dtos/pagination.dto';
 import { TokenPayload } from '../auth/types/TokenPayload.type';
 import { ResponseMessage } from 'src/common/decorators/apiResponseMessage.decorator';
@@ -66,6 +67,18 @@ export class GroupChatController {
   ) {
     const payload = request['payload'] as TokenPayload;
     return this.groupChatService.addGroupMember(roomId, payload.id, memberId);
+  }
+
+  @Post('room/:roomId/members')
+  @HttpCode(200)
+  @ResponseMessage('Members added to group successfully')
+  async addGroupMembers(
+    @Req() request: Request,
+    @Param('roomId') roomId: string,
+    @Body() addGroupMembersDto: AddGroupMembersDto,
+  ) {
+    const payload = request['payload'] as TokenPayload;
+    return this.groupChatService.addGroupMembers(roomId, payload.id, addGroupMembersDto.memberIds);
   }
 
   @Delete('room/:roomId/member/:memberId')

@@ -226,4 +226,104 @@ export class RatingService {
 
     return rating;
   }
+
+  /**
+   * Get the rating that a user gave to another user
+   * @param raterId - ID of the user who gave the rating
+   * @param rateeId - ID of the user who received the rating
+   */
+  async getMyRatingForUser(raterId: string, rateeId: string) {
+    if (raterId === rateeId) {
+      throw new BadRequestException('You cannot rate yourself');
+    }
+
+    const rating = await this.prismaService.userRating.findFirst({
+      where: {
+        rater_id: raterId,
+        ratee_id: rateeId,
+      },
+      include: {
+        rater: {
+          select: {
+            id: true,
+            nick_name: true,
+            avatar: true,
+          },
+        },
+        ratee: {
+          select: {
+            id: true,
+            nick_name: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    return rating;
+  }
+
+  /**
+   * Update the rating that a user gave to another user
+   * @param raterId - ID of the user who gave the rating
+   * @param rateeId - ID of the user who received the rating
+   * @param updateRatingDto - Updated rating value
+   */
+  async updateMyRatingForUser(raterId: string, rateeId: string, updateRatingDto: any) {
+    if (raterId === rateeId) {
+      throw new BadRequestException('You cannot rate yourself');
+    }
+
+    // Check if ratee exists
+    const ratee = await this.prismaService.user.findUnique({
+      where: { id: rateeId },
+    });
+
+    if (!ratee) {
+      throw new NotFoundException('User to rate not found');
+    }
+
+    // Validate rating value
+    if (updateRatingDto.rating < 1 || updateRatingDto.rating > 5) {
+      throw new BadRequestException('Rating must be between 1 and 5');
+    }
+
+    // Check if rating exists
+    const existingRating = await this.prismaService.userRating.findFirst({
+      where: {
+        rater_id: raterId,
+        ratee_id: rateeId,
+      },
+    });
+
+    if (!existingRating) {
+      throw new NotFoundException('You have not rated this user yet');
+    }
+
+    // Update the rating
+    const updatedRating = await this.prismaService.userRating.update({
+      where: { id: existingRating.id },
+      data: {
+        rating: updateRatingDto.rating,
+      },
+      include: {
+        rater: {
+          select: {
+            id: true,
+            nick_name: true,
+            avatar: true,
+          },
+        },
+        ratee: {
+          select: {
+            id: true,
+            nick_name: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    return updatedRating;
+  }
 }

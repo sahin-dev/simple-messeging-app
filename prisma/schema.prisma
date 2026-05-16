@@ -49,6 +49,11 @@ model User {
   userRatingsGiven UserRating[] @relation("rater")
   userRatingsReceived UserRating[] @relation("ratee")
   parkingReports ParkingReport[]
+  documents UserDocument[]
+  
+  notificationEvents NotificationEvent[]
+  notificationPreference NotificationPreference?
+  userLocation UserLocation?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -257,16 +262,12 @@ model ParkingReport {
   user_id String @db.ObjectId
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
   
-  description String?
   latitude Float
   longitude Float
-  
-  parking_type ParkingType
   parking_cost ParkingCost
   electric_charging Boolean @default(false)
   disabled_facility Boolean @default(false)
-  disabled_facility_location DisabledFacilityLocation @default(NONE)
-  
+  disabled_facility_location DisabledFacilityLocation?
   is_active Boolean @default(true)
   expiresAt DateTime
   
@@ -322,6 +323,103 @@ enum ParkingCost {
 enum DisabledFacilityLocation {
   TOP
   RIGHT
-  BACK
+  LEFT
   NONE
+  ALL
+}
+
+enum NotificationEventType {
+  PARKING_AVAILABLE
+  PARKING_NEARBY
+  CHAT_MESSAGE
+  CHAT_DELIVERED
+  CHAT_READ
+  RATING_RECEIVED
+  GROUP_CHAT_MESSAGE
+  GROUP_CHAT_ADDED
+  GROUP_CHAT_REMOVED
+  SYSTEM_NOTIFICATION
+  USER_MENTION
+  PARKING_EXPIRING_SOON
+  DOCUMENT_EXPIRING_SOON
+  DOCUMENT_EXPIRED
+}
+
+model NotificationEvent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  eventType NotificationEventType
+  title     String
+  message   String
+  payload   String?
+  
+  isRead    Boolean  @default(false)
+  sentAt    DateTime @default(now())
+  readAt    DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([eventType])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notification_events")
+}
+
+model NotificationPreference {
+  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId                  String   @unique @db.ObjectId
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  parkingNotifications    Boolean  @default(true)
+  chatNotifications       Boolean  @default(true)
+  ratingNotifications     Boolean  @default(true)
+  groupChatNotifications  Boolean  @default(true)
+  systemNotifications     Boolean  @default(true)
+  
+  notificationRadius      Int      @default(200)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("notification_preferences")
+}
+
+model UserLocation {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @unique @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  latitude  Float
+  longitude Float
+  accuracy  Float?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("user_locations")
+}
+
+model UserDocument{
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  user_id String @db.ObjectId
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  unique_id String @unique
+  expiry_date DateTime
+  document_type DocumentType
+  document_url String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("user_documents")
+}
+
+enum DocumentType {
+  LICENSE
+  INSURANCE
+  TAX
 }

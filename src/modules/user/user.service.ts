@@ -12,6 +12,8 @@ import { PaginationDto } from "src/common/dtos/pagination.dto";
 import { SocketGateway } from "../chat/gateway/chat.gateway";
 import otpEmailTemplate from "src/common/templates/emailVerification.template";
 import { QrCodeGeneratorProvider } from "./providers/qrCodeGenerator.provider";
+import { RatingService } from "../rating/rating.service";
+import { UserWhereInput } from "generated/prisma/models";
 
 @Injectable()
 export class UserService {
@@ -21,7 +23,8 @@ export class UserService {
         private readonly encoder: EncoderProvider,
         private readonly smtpProvider: SMTPProvider,
         private readonly chatService: ChatService,
-        private readonly qrCodeGenerator: QrCodeGeneratorProvider
+        private readonly qrCodeGenerator: QrCodeGeneratorProvider,
+        private readonly ratingService: RatingService
     ) { }
 
     /**
@@ -607,9 +610,10 @@ export class UserService {
     }
 
     async generateUserLink(userId:string){
-        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000"
-        return `${frontendUrl}?id=${userId}`
+        // Return just the userId - this will be encoded in QR code
+        return userId
     }
+    
 
     async generateQrCodeForUser(userId:string){
 
@@ -633,8 +637,189 @@ export class UserService {
 
     }
 
+    /**
+     * Get user info from QR code data and check for existing chat room
+     * @param currentUserId - The user who is scanning the QR code
+     * @param qrData - The data extracted from QR code (userId of the profile owner)
+     * @returns User info with room ID if exists, otherwise with userId
+     */
+    async getUserInfoFromQrCode(currentUserId: string, qrData: string) {
+        // QR data contains the userId of the profile being scanned
+        const scannedUserId = qrData.trim();
+
+        // Validate that user is not scanning their own QR code
+        if (currentUserId === scannedUserId) {
+            throw new BadRequestException("You cannot start a chat with yourself");
+        }
+
+        // Fetch the scanned user's information
+        const scannedUser = await this.prismaService.user.findUnique({
+            where: { id: scannedUserId },
+            select: {
+                id: true,
+                nick_name: true,
+                avatar: true,
+                licence_id: true,
+                is_blocked: true
+            }
+        });
+
+        if (!scannedUser) {
+            throw new NotFoundException("User not found");
+        }
+
+        const rating = await this.ratingService.getAverageRatingForUser(scannedUserId)
+        Object.assign(scannedUser, { rating:rating.averageRating })
+
+        if (scannedUser.is_blocked) {
+            throw new BadRequestException("This user account has been blocked");
+        }
+
+        // Check if a chat room already exists between the two users
+        const existingRoom = await this.chatService.getChatRoomIfExist(currentUserId, scannedUserId);
+
+        if (existingRoom) {
+            // Return existing room ID with user info
+            return {
+                roomId: existingRoom.id,
+                user: scannedUser,
+                isExistingChat: true
+            };
+        }
+
+        // No existing room, return user info and userId for creating new chat
+        return {
+            user: scannedUser,
+            isExistingChat: false
+        };
+    }
+
+    /**
+     * Get user profile with rating
+     * @param userId 
+     * @returns 
+     */
+    async getUserProfile(userId: string) {
+        const user = await this.prismaService.user.findUnique({
+            where: { id: userId },
+            omit: { password: true, otp: true, otp_expires: true, otp_verification_token: true }
+        });
+
+        if (!user) {
+            throw new NotFoundException("User not found");
+        }
+
+        // Get average rating for this user
+        const ratingData = await this.ratingService.getAverageRatingForUser(userId);
+
+        return {
+            ...user,
+            rating: ratingData.averageRating
+        };
+    }
+
+      async getUsersForAddingToGroup (groupChatRoomId: string, userId: string, paginationDto: PaginationDto)  {
+        // Verify user is a member
+        const membership = await this.prismaService.groupChatRoomMember.findFirst({
+          where: {
+            groupChatRoom_id: groupChatRoomId,
+            user_id: userId,
+          },
+        });
+    
+        if (!membership) {
+          throw new NotFoundException('You are not a member of this group');
+        }
+    
+        const skip = (paginationDto.page - 1) * paginationDto.limit;
+    
+        const [users, total] = await Promise.all([
+          this.prismaService.user.findMany({
+            where: {
+              NOT: {
+                groupChatRooms: {
+                  some: {
+                    groupChatRoom_id: groupChatRoomId,
+                  },
+                },
+              },
+            },
+            select: {
+              id: true,
+              nick_name: true,
+              avatar: true,
+            },
+            skip,
+            take: paginationDto.limit,
+          }),
+          this.prismaService.user.count({
+            where: {
+              NOT: {
+                groupChatRooms: {
+                  some: {
+                    groupChatRoom_id: groupChatRoomId,
+                  },
+                },
+              },
+            },
+          }),
+        ]);
+        
+        return { users, total };
+      }
+    
+      async searchUsersToAddToGroup(groupChatRoomId: string, userId: string, query: string, paginationDto: PaginationDto) {
+    
+        
+        // Verify user is a member
+        const membership = await this.prismaService.groupChatRoomMember.findFirst({
+          where: {
+            groupChatRoom_id: groupChatRoomId,
+            user_id: userId,
+          },
+        });
+    
+        if (!membership) {
+          throw new NotFoundException('You are not a member of this group');
+        }
+    
+    
+    
+        const skip = (paginationDto.page - 1) * paginationDto.limit;
+    
+        const searchUserWhere:UserWhereInput = {
+          NOT: {
+                groupChatRooms: {
+                  some: {
+                    groupChatRoom_id: groupChatRoomId,
+                  },
+                },
+              },
+              OR: [
+                { nick_name: { contains: query, mode: 'insensitive' } },
+                { email: { contains: query, mode: 'insensitive' } },
+              ],
+              
+        }
+    
+        const [users, total] = await Promise.all([
+          this.prismaService.user.findMany({
+            where: searchUserWhere,
+            select: {
+              id: true,
+              nick_name: true,
+              avatar: true,
+            },
+            skip,
+            take: paginationDto.limit,
+          }),
+          this.prismaService.user.count({
+              where: searchUserWhere
+          }),
+        ]);
+    
+        return { users, total };
+      }
+
 
 }
-
-
-

@@ -2,9 +2,7 @@ import { IsString, IsNumber, IsBoolean, IsEnum, IsOptional } from 'class-validat
 import { ParkingType, ParkingCost, DisabledFacilityLocation } from 'src/common/enums';
 
 export class CreateParkingReportDto {
-  @IsOptional()
-  @IsString()
-  description?: string;
+
 
   @IsNumber()
   latitude: number;
@@ -12,8 +10,6 @@ export class CreateParkingReportDto {
   @IsNumber()
   longitude: number;
 
-  @IsEnum(ParkingType)
-  parking_type: ParkingType;
 
   @IsEnum(ParkingCost)
   parking_cost: ParkingCost;
@@ -25,5 +21,6 @@ export class CreateParkingReportDto {
   disabled_facility: boolean;
 
   @IsEnum(DisabledFacilityLocation)
+  @IsOptional()
   disabled_facility_location: DisabledFacilityLocation;
 }

@@ -4,6 +4,10 @@ import { CreateGroupChatRoomDto } from './dtos/create-group-chat-room.dto';
 import { SendGroupMessageDto } from './dtos/send-group-message.dto';
 import { UpdateGroupChatRoomDto } from './dtos/update-group-chat-room.dto';
 import { PaginationDto } from './dtos/pagination.dto';
+import { group } from 'console';
+import { User } from 'generated/prisma/browser';
+import { DefaultArgs } from '@prisma/client/runtime/library';
+import { UserDelegate, UserWhereInput } from 'generated/prisma/models';
 
 @Injectable()
 export class GroupChatService {
@@ -214,6 +218,8 @@ export class GroupChatService {
       },
     });
 
+    console.log(groupChatRoomId, newMemberId, existingMember)
+
     if (existingMember) {
       throw new BadRequestException('User is already a member of this group');
     }
@@ -245,6 +251,86 @@ export class GroupChatService {
     });
 
     return newMember;
+  }
+
+  async addGroupMembers(groupChatRoomId: string, userId: string, newMemberIds: string[]) {
+    // Verify requester is admin
+    const requesterMembership = await this.prismaService.groupChatRoomMember.findFirst({
+      where: {
+        groupChatRoom_id: groupChatRoomId,
+        user_id: userId,
+      },
+    });
+
+    if (!requesterMembership || requesterMembership.group_role !== 'GROUP_ADMIN') {
+      throw new BadRequestException('Only group admin can add members');
+    }
+
+    // Remove duplicates from input
+    const uniqueMemberIds = [...new Set(newMemberIds)];
+
+    // Check for existing members
+    const existingMembers = await this.prismaService.groupChatRoomMember.findMany({
+      where: {
+        groupChatRoom_id: groupChatRoomId,
+        user_id: {
+          in: uniqueMemberIds,
+        },
+      },
+      select: {
+        user_id: true,
+      },
+    });
+
+    const existingMemberIds = existingMembers.map((m) => m.user_id);
+    const newMembersToAdd = uniqueMemberIds.filter((id) => !existingMemberIds.includes(id));
+
+    if (newMembersToAdd.length === 0) {
+      throw new BadRequestException('All users are already members of this group');
+    }
+
+    // Add new members in batch
+    const addedMembers = await this.prismaService.groupChatRoomMember.createMany({
+      data: newMembersToAdd.map((memberId) => ({
+        groupChatRoom_id: groupChatRoomId,
+        user_id: memberId,
+      })),
+    });
+
+    // Fetch the added members with user details
+    const addedMembersWithDetails = await this.prismaService.groupChatRoomMember.findMany({
+      where: {
+        groupChatRoom_id: groupChatRoomId,
+        user_id: {
+          in: newMembersToAdd,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            nick_name: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    // Update member count
+    await this.prismaService.groupChatRoom.update({
+      where: { id: groupChatRoomId },
+      data: {
+        group_members_count: {
+          increment: newMembersToAdd.length,
+        },
+      },
+    });
+
+    return {
+      addedCount: newMembersToAdd.length,
+      alreadyMemberCount: existingMemberIds.length,
+      members: addedMembersWithDetails,
+    };
   }
 
   async removeGroupMember(groupChatRoomId: string, userId: string, memberId: string) {
@@ -354,4 +440,149 @@ export class GroupChatService {
 
     return { message: 'Left group successfully' };
   }
+
+
+  async getGroupMembers(groupChatRoomId: string, userId: string, paginationDto: PaginationDto) {
+    // Verify user is a member
+    const membership = await this.prismaService.groupChatRoomMember.findFirst({
+      where: {
+        groupChatRoom_id: groupChatRoomId,
+        user_id: userId,
+      },
+    });
+
+    if (!membership) {
+      throw new NotFoundException('You are not a member of this group');
+    }
+
+    const skip = (paginationDto.page - 1) * paginationDto.limit;
+    const take = paginationDto.limit;
+
+    
+    const [members, total] = await Promise.all([
+      this.prismaService.groupChatRoomMember.findMany({
+        where: { groupChatRoom_id: groupChatRoomId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              nick_name: true,
+              avatar: true,
+            },
+          },
+        },
+        skip,
+        take,
+      }),
+      this.prismaService.groupChatRoomMember.count({
+        where: { groupChatRoom_id: groupChatRoomId },
+      }),
+    ]);
+
+    return { members, total };
+  }
+
+  async getUsersForAddingToGroup (groupChatRoomId: string, userId: string, paginationDto: PaginationDto)  {
+    // Verify user is a member
+    const membership = await this.prismaService.groupChatRoomMember.findFirst({
+      where: {
+        groupChatRoom_id: groupChatRoomId,
+        user_id: userId,
+      },
+    });
+
+    if (!membership) {
+      throw new NotFoundException('You are not a member of this group');
+    }
+
+    const skip = (paginationDto.page - 1) * paginationDto.limit;
+
+    const [users, total] = await Promise.all([
+      this.prismaService.user.findMany({
+        where: {
+          NOT: {
+            groupChatRooms: {
+              some: {
+                groupChatRoom_id: groupChatRoomId,
+              },
+            },
+          },
+        },
+        select: {
+          id: true,
+          nick_name: true,
+          avatar: true,
+        },
+        skip,
+        take: paginationDto.limit,
+      }),
+      this.prismaService.user.count({
+        where: {
+          NOT: {
+            groupChatRooms: {
+              some: {
+                groupChatRoom_id: groupChatRoomId,
+              },
+            },
+          },
+        },
+      }),
+    ]);
+    
+    return { users, total };
+  }
+
+  async searchUsersToAddToGroup(groupChatRoomId: string, userId: string, query: string, paginationDto: PaginationDto) {
+
+    
+    // Verify user is a member
+    const membership = await this.prismaService.groupChatRoomMember.findFirst({
+      where: {
+        groupChatRoom_id: groupChatRoomId,
+        user_id: userId,
+      },
+    });
+
+    if (!membership) {
+      throw new NotFoundException('You are not a member of this group');
+    }
+
+
+
+    const skip = (paginationDto.page - 1) * paginationDto.limit;
+
+    const searchUserWhere:UserWhereInput = {
+      NOT: {
+            groupChatRooms: {
+              some: {
+                groupChatRoom_id: groupChatRoomId,
+              },
+            },
+          },
+          OR: [
+            { nick_name: { contains: query, mode: 'insensitive' } },
+            { email: { contains: query, mode: 'insensitive' } },
+          ],
+          
+    }
+
+    const [users, total] = await Promise.all([
+      this.prismaService.user.findMany({
+        where: searchUserWhere,
+        select: {
+          id: true,
+          nick_name: true,
+          avatar: true,
+        },
+        skip,
+        take: paginationDto.limit,
+      }),
+      this.prismaService.user.count({
+          where: searchUserWhere
+      }),
+    ]);
+
+    return { users, total };
+  }
+
 }

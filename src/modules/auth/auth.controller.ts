@@ -53,8 +53,6 @@ export class AuthController {
     async getAuthenticatedUser(@Req() request: Request) {
         const tokenpayload = request["payload"] as TokenPayload;
 
-
-
         const userDetails = await this.authService.getAuthenticatedUser(tokenpayload.id);
 
         if (userDetails?.role === UserRole.USER) {

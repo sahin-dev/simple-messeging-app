@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Patch, Post, Query, Req, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { UserService } from "./user.service";
 import { plainToInstance } from "class-transformer";
 import { UserResponseDto } from "./dtos/user-response.dto";
@@ -20,6 +20,7 @@ import { Roles } from "src/common/decorators/role.decorator";
 import { BlockUnblockDto } from "./dtos/block-unblock.dto";
 import { TogggleBlockUserDto } from "./dtos/block-user.dto";
 import { DeleteAccountDto } from "./dtos/delete-account.dto";
+import { ScanQrCodeDto } from "./dtos/scan-qr-code.dto";
 
 
 @Controller({
@@ -37,6 +38,18 @@ export class UserController {
     async searchUsers(@Query() searchDto: SearchUsersDto, @Req() req: Request) {
 
         const tokenPayload = req['payload'] as TokenPayload;
+
+        if (searchDto.for === "group" || searchDto.roomId){
+            const paginationDto = new PaginationDto();
+            paginationDto.page = searchDto.page;
+            paginationDto.limit = searchDto.limit;
+            const users = await this.userService.searchUsersToAddToGroup(searchDto.roomId!, tokenPayload.id,searchDto.query, paginationDto);
+                return users.users.map(user => plainToInstance(UserResponseDto, user, {
+                excludeExtraneousValues: true,
+                groups: [UserRole.USER]
+            }))
+
+        }
 
         const users = await this.userService.searchUsers(tokenPayload.id, searchDto.query, searchDto.page, searchDto.limit);
         return users;
@@ -185,5 +198,23 @@ export class UserController {
         const payload = request['payload'] as TokenPayload;
         const qrcode = await this.userService.generateQrCodeForUser(payload.id)
         return { qr_code: qrcode }
+    }
+
+    @Post("scan-qr-code")
+    @ResponseMessage("User info fetched successfully")
+    async scanQrCode(@Req() request:Request, @Body() scanQrCodeDto: ScanQrCodeDto){
+        const payload = request['payload'] as TokenPayload;
+        const userInfo = await this.userService.getUserInfoFromQrCode(payload.id, scanQrCodeDto.qrData)
+        return userInfo;
+    }
+
+    /**
+     * Get user profile with rating
+     */
+    @Get(":id/profile")
+    @ResponseMessage("User profile fetched successfully")
+    async getUserProfile(@Param('id') userId: string) {
+        const userProfile = await this.userService.getUserProfile(userId);
+        return userProfile;
     }
 }

@@ -67,6 +67,9 @@ export class UserResponseDto {
     })
     is_deleted: boolean
 
+    @Expose()
+    rating?: number
+
     @Expose({
         groups: ['admin']
     })

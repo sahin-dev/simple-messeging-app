@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Delete, Query, Req, HttpCode
 import { RatingService } from './rating.service';
 import { CreateRatingDto } from './dtos/create-rating.dto';
 import { UpdateRatingStatusDto } from './dtos/update-rating-status.dto';
+import { UpdateRatingDto } from './dtos/update-rating.dto';
 import { TokenPayload } from '../auth/types/TokenPayload.type';
 import { ResponseMessage } from 'src/common/decorators/apiResponseMessage.decorator';
 import { RatingStatus } from 'generated/prisma/enums';
@@ -16,6 +17,37 @@ export class RatingController {
   async createRating(@Req() request: Request, @Body() createRatingDto: CreateRatingDto) {
     const payload = request['payload'] as TokenPayload;
     return this.ratingService.createRating(payload.id, createRatingDto);
+  }
+
+  /**
+   * Get the rating that current user gave to another user
+   * GET /ratings/my-rating/:rateeId
+   */
+  @Get('my-rating/:rateeId')
+  @HttpCode(200)
+  @ResponseMessage('User rating fetched successfully')
+  async getMyRatingForUser(
+    @Req() request: Request,
+    @Param('rateeId') rateeId: string,
+  ) {
+    const payload = request['payload'] as TokenPayload;
+    return this.ratingService.getMyRatingForUser(payload.id, rateeId);
+  }
+
+  /**
+   * Update the rating that current user gave to another user
+   * PATCH /ratings/my-rating/:rateeId
+   */
+  @Patch('my-rating/:rateeId')
+  @HttpCode(200)
+  @ResponseMessage('Rating updated successfully')
+  async updateMyRatingForUser(
+    @Req() request: Request,
+    @Param('rateeId') rateeId: string,
+    @Body() updateRatingDto: UpdateRatingDto,
+  ) {
+    const payload = request['payload'] as TokenPayload;
+    return this.ratingService.updateMyRatingForUser(payload.id, rateeId, updateRatingDto);
   }
 
   @Patch(':id/status')

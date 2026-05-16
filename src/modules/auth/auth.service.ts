@@ -14,6 +14,7 @@ import { TokenPayload } from "./types/TokenPayload.type";
 import { sign } from "crypto";
 import otpEmailTemplate from "src/common/templates/emailVerification.template";
 import welcomeEmailTemplate from "src/common/templates/welcomeEmail.template";
+import { RatingService } from "../rating/rating.service";
 
 @Injectable()
 export class AuthService {
@@ -26,7 +27,8 @@ export class AuthService {
         private readonly jwtService: JwtService,
         @Inject(jwtConfig.KEY)
         private readonly jwtConfigOptions: ConfigType<typeof jwtConfig>,
-        private readonly smtpProvider:SMTPProvider
+        private readonly smtpProvider: SMTPProvider,
+        private readonly ratingService: RatingService
     ) { }
 
     /**
@@ -169,7 +171,12 @@ export class AuthService {
      */
     async getAuthenticatedUser(userId: string) {
         const userDetails = await this.userService.findUserById(userId);
-        return userDetails;
+        const ratingInfo = await this.ratingService.getAverageRatingForUser(userId);
+        
+        return {
+            ...userDetails,
+            rating: ratingInfo.averageRating
+        };
     }
 
     /**

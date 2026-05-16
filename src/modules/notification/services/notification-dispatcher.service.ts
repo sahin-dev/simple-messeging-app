@@ -1,0 +1,483 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { GeolocationService } from '../../../common/services/geolocation.service';
+import { NotificationEventService } from './notification-event.service';
+import { NotificationPreferenceService } from './notification-preference.service';
+import { FireBaseClient } from '../providers/firebase.provider';
+import { NotificationEventTypeEnum } from '../dtos/notification-event.dto';
+
+@Injectable()
+export class NotificationDispatcherService {
+  private readonly logger = new Logger(NotificationDispatcherService.name);
+
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly geolocationService: GeolocationService,
+    private readonly notificationEventService: NotificationEventService,
+    private readonly notificationPreferenceService: NotificationPreferenceService,
+    private readonly firebaseClient: FireBaseClient,
+  ) {}
+
+  /**
+   * Dispatch parking availability notification to users within radius
+   * This is the main use case for the notification system
+   */
+  async dispatchParkingNotification(parkingReport: any): Promise<void> {
+    try {
+      this.logger.log(
+        `Dispatching parking notification for report ${parkingReport.id}`,
+      );
+
+      // Find users within radius (excluding the reporter)
+      const usersInRadius = await this.geolocationService.findUsersWithinRadius(
+        parkingReport.latitude,
+        parkingReport.longitude,
+        200, // 200 meters radius
+        parkingReport.user_id, // Exclude the reporter
+      );
+
+      this.logger.log(
+        `Found ${usersInRadius.length} users within radius for parking ${parkingReport.id}`,
+      );
+
+      // Send notifications to eligible users
+      for (const user of usersInRadius) {
+        try {
+          // Check if user has parking notifications enabled and within their preferred radius
+          const shouldNotify =
+            await this.notificationPreferenceService.shouldNotifyForParking(
+              user.id,
+              // We need to calculate actual distance for this user
+              await this.getDistanceForUser(user.id, parkingReport),
+            );
+
+          if (!shouldNotify || !user.fcm_token) {
+            this.logger.debug(`Skipping notification for user ${user.id}`);
+            continue;
+          }
+
+          // Build notification message
+          const title = 'Parking Available!';
+          const message = this.buildParkingNotificationMessage(parkingReport);
+          const payload = {
+            parkingReportId: parkingReport.id,
+            latitude: parkingReport.latitude,
+            longitude: parkingReport.longitude,
+            parkingCost: parkingReport.parking_cost,
+            hasCharging: parkingReport.electric_charging,
+            hasDisabledFacility: parkingReport.disabled_facility,
+            reporterName: parkingReport.user?.name || parkingReport.user?.nick_name,
+          };
+
+          // Create notification event
+          await this.notificationEventService.createEvent({
+            userId: user.id,
+            eventType: NotificationEventTypeEnum.PARKING_AVAILABLE,
+            title,
+            message,
+            payload,
+          });
+
+          // Send push notification via FCM
+          await this.sendPushNotification(user.fcm_token, title, message);
+
+          this.logger.log(
+            `Sent parking notification to user ${user.id}`,
+          );
+        } catch (err) {
+          this.logger.error(
+            `Failed to send notification to user ${user.id}:`,
+            err,
+          );
+        }
+      }
+    } catch (err) {
+      this.logger.error(
+        `Error dispatching parking notifications for report ${parkingReport.id}:`,
+        err,
+      );
+    }
+  }
+
+  /**
+   * Dispatch chat message notification
+   */
+  async dispatchChatNotification(
+    chat: any,
+    receiverId: string,
+  ): Promise<void> {
+    try {
+      const isEnabled =
+        await this.notificationPreferenceService.isNotificationEnabled(
+          receiverId,
+          'chat',
+        );
+
+      if (!isEnabled) {
+        return;
+      }
+
+      const receiver = await this.prismaService.user.findUnique({
+        where: { id: receiverId },
+      });
+
+      if (!receiver || !receiver.fcm_token) {
+        return;
+      }
+
+      const title = `Message from ${chat.sender?.nick_name || chat.sender?.name}`;
+      const message = chat.message.substring(0, 100);
+
+      await this.notificationEventService.createEvent({
+        userId: receiverId,
+        eventType: NotificationEventTypeEnum.CHAT_MESSAGE,
+        title,
+        message,
+        payload: {
+          chatId: chat.id,
+          senderId: chat.sender_id,
+          senderName: chat.sender?.nick_name || chat.sender?.name,
+        },
+      });
+
+      await this.sendPushNotification(receiver.fcm_token, title, message);
+
+      this.logger.log(`Sent chat notification to user ${receiverId}`);
+    } catch (err) {
+      this.logger.error(`Failed to dispatch chat notification:`, err);
+    }
+  }
+
+  /**
+   * Dispatch rating received notification
+   */
+  async dispatchRatingNotification(rating: any): Promise<void> {
+    try {
+      const isEnabled =
+        await this.notificationPreferenceService.isNotificationEnabled(
+          rating.ratee_id,
+          'rating',
+        );
+
+      if (!isEnabled) {
+        return;
+      }
+
+      const rater = await this.prismaService.user.findUnique({
+        where: { id: rating.rater_id },
+      });
+
+      const ratee = await this.prismaService.user.findUnique({
+        where: { id: rating.ratee_id },
+      });
+
+      if (!ratee || !ratee.fcm_token) {
+        return;
+      }
+
+      const title = 'New Rating Received!';
+      const message = `${rater?.nick_name || rater?.name} gave you a ${rating.rating} star rating`;
+
+      await this.notificationEventService.createEvent({
+        userId: rating.ratee_id,
+        eventType: NotificationEventTypeEnum.RATING_RECEIVED,
+        title,
+        message,
+        payload: {
+          ratingId: rating.id,
+          ratingScore: rating.rating,
+          raterName: rater?.nick_name || rater?.name,
+        },
+      });
+
+      await this.sendPushNotification(ratee.fcm_token, title, message);
+
+      this.logger.log(`Sent rating notification to user ${rating.ratee_id}`);
+    } catch (err) {
+      this.logger.error(`Failed to dispatch rating notification:`, err);
+    }
+  }
+
+  /**
+   * Dispatch group chat message notification
+   */
+  async dispatchGroupChatNotification(groupChat: any, groupChatRoom: any): Promise<void> {
+    try {
+      // Get all members of the group chat except the sender
+      const members = await this.prismaService.groupChatRoomMember.findMany({
+        where: {
+          groupChatRoom_id: groupChatRoom.id,
+          user_id: {
+            not: groupChat.sender_id,
+          },
+        },
+        include: {
+          user: true,
+        },
+      });
+
+      for (const member of members) {
+        try {
+          const isEnabled =
+            await this.notificationPreferenceService.isNotificationEnabled(
+              member.user_id,
+              'groupChat',
+            );
+
+          if (!isEnabled || !member.user.fcm_token) {
+            continue;
+          }
+
+          const title = `${groupChatRoom.name}`;
+          const message = `${groupChat.sender?.nick_name || groupChat.sender?.name}: ${groupChat.message.substring(0, 50)}`;
+
+          await this.notificationEventService.createEvent({
+            userId: member.user_id,
+            eventType: NotificationEventTypeEnum.GROUP_CHAT_MESSAGE,
+            title,
+            message,
+            payload: {
+              groupChatRoomId: groupChatRoom.id,
+              groupChatId: groupChat.id,
+              senderId: groupChat.sender_id,
+            },
+          });
+
+          await this.sendPushNotification(member.user.fcm_token, title, message);
+        } catch (err) {
+          this.logger.error(
+            `Failed to send group chat notification to user ${member.user_id}:`,
+            err,
+          );
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Failed to dispatch group chat notifications:`, err);
+    }
+  }
+
+  /**
+   * Dispatch system notification to multiple users
+   */
+  async dispatchSystemNotification(
+    userIds: string[],
+    title: string,
+    message: string,
+    payload?: any,
+  ): Promise<void> {
+    try {
+      for (const userId of userIds) {
+        try {
+          const isEnabled =
+            await this.notificationPreferenceService.isNotificationEnabled(
+              userId,
+              'system',
+            );
+
+          if (!isEnabled) {
+            continue;
+          }
+
+          const user = await this.prismaService.user.findUnique({
+            where: { id: userId },
+          });
+
+          if (!user || !user.fcm_token) {
+            continue;
+          }
+
+          await this.notificationEventService.createEvent({
+            userId,
+            eventType: NotificationEventTypeEnum.SYSTEM_NOTIFICATION,
+            title,
+            message,
+            payload,
+          });
+
+          await this.sendPushNotification(user.fcm_token, title, message);
+        } catch (err) {
+          this.logger.error(
+            `Failed to send system notification to user ${userId}:`,
+            err,
+          );
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Failed to dispatch system notifications:`, err);
+    }
+  }
+
+  /**
+   * Send push notification via Firebase Cloud Messaging
+   */
+  private async sendPushNotification(
+    fcmToken: string,
+    title: string,
+    message: string,
+  ): Promise<void> {
+    try {
+      await this.firebaseClient.sendPushNotification(fcmToken, title, message);
+    } catch (err) {
+      this.logger.error(`Failed to send push notification via FCM:`, err);
+    }
+  }
+
+  /**
+   * Build parking notification message based on parking details
+   */
+  private buildParkingNotificationMessage(parkingReport: any): string {
+    const details:string[] = [];
+
+    if (parkingReport.parking_cost === 'FREE') {
+      details.push('🆓 Free');
+    } else if (parkingReport.parking_cost === 'PAID') {
+      details.push('💵 Paid');
+    }
+
+    if (parkingReport.electric_charging) {
+      details.push('⚡ Charging');
+    }
+
+    if (parkingReport.disabled_facility) {
+      details.push('♿ Accessible');
+    }
+
+    if (details.length > 0) {
+      return `${details.join(' • ')}`;
+    }
+
+    return 'Parking spot available';
+  }
+
+  /**
+   * Get distance from user to parking spot
+   */
+  private async getDistanceForUser(userId: string, parkingReport: any): Promise<number> {
+    const userLocation = await this.geolocationService.getUserLocation(userId);
+
+    if (!userLocation) {
+      return Infinity; // If no location, consider as too far
+    }
+
+    return this.geolocationService.calculateDistance(
+      userLocation.latitude,
+      userLocation.longitude,
+      parkingReport.latitude,
+      parkingReport.longitude,
+    );
+  }
+
+  /**
+   * Dispatch document expiry notification when document is expiring soon
+   */
+  async dispatchDocumentExpiryNotification(
+    user: any,
+    document: any,
+    daysUntilExpiry: number,
+  ): Promise<void> {
+    try {
+      this.logger.log(
+        `Dispatching document expiry notification for user ${user.id}`,
+      );
+
+      // Check if user has notifications enabled
+      const isNotificationEnabled =
+        await this.notificationPreferenceService.isNotificationEnabled(user.id, 'document');
+
+      if (!isNotificationEnabled || !user.fcm_token) {
+        this.logger.debug(
+          `User ${user.id} has notifications disabled or no FCM token`,
+        );
+        return;
+      }
+
+      // Create notification event
+      const eventPayload = {
+        documentId: document.id,
+        documentType: document.document_type,
+        expiryDate: document.expiry_date,
+        daysUntilExpiry: daysUntilExpiry,
+      };
+
+      await this.notificationEventService.createEvent({
+        userId: user.id,
+        eventType: NotificationEventTypeEnum.DOCUMENT_EXPIRING_SOON,
+        title: `Your ${document.document_type} Document Expiring Soon`,
+        message: `Your ${document.document_type} document will expire in ${daysUntilExpiry} days. Please renew it to avoid service interruption.`,
+        payload: eventPayload as Record<string, any>,
+      });
+
+      // Send FCM push notification
+      await this.firebaseClient.sendPushNotification(
+        user.fcm_token,
+        `${document.document_type} Document Expiring Soon`,
+        `Your document expires in ${daysUntilExpiry} days. Please renew it now.`,
+      );
+
+      this.logger.log(
+        `Document expiry notification sent to user ${user.id} for ${document.document_type}`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to dispatch document expiry notification for user ${user.id}:`,
+        err,
+      );
+    }
+  }
+
+  /**
+   * Dispatch document expired notification when document has expired
+   */
+  async dispatchDocumentExpiredNotification(
+    user: any,
+    document: any,
+  ): Promise<void> {
+    try {
+      this.logger.log(
+        `Dispatching document expired notification for user ${user.id}`,
+      );
+
+      // Check if user has notifications enabled
+      const isNotificationEnabled =
+        await this.notificationPreferenceService.isNotificationEnabled(user.id, 'document');
+
+      if (!isNotificationEnabled || !user.fcm_token) {
+        this.logger.debug(
+          `User ${user.id} has notifications disabled or no FCM token`,
+        );
+        return;
+      }
+
+      // Create notification event
+      const eventPayload = {
+        documentId: document.id,
+        documentType: document.document_type,
+        expiryDate: document.expiry_date,
+      };
+
+      await this.notificationEventService.createEvent({
+        userId: user.id,
+        eventType: NotificationEventTypeEnum.DOCUMENT_EXPIRED,
+        title: `Your ${document.document_type} Document Has Expired`,
+        message: `Your ${document.document_type} document has expired. You must renew it immediately to continue using our services.`,
+        payload: eventPayload as Record<string, any>,
+      });
+
+      // Send FCM push notification with high priority
+      await this.firebaseClient.sendPushNotification(
+        user.fcm_token,
+        `⚠️ ${document.document_type} Document Expired`,
+        'Your document has expired. Please renew it immediately.',
+      );
+
+      this.logger.log(
+        `Document expired notification sent to user ${user.id} for ${document.document_type}`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to dispatch document expired notification for user ${user.id}:`,
+        err,
+      );
+    }
+  }
+}
