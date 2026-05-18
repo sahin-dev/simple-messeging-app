@@ -788,6 +788,7 @@ export class UserService {
         const skip = (paginationDto.page - 1) * paginationDto.limit;
     
         const searchUserWhere:UserWhereInput = {
+            role:UserRole.USER,
           NOT: {
                 groupChatRooms: {
                   some: {
