@@ -9,8 +9,8 @@ export class SMTPProvider {
 
     private transporter:Transporter
     constructor(@Inject(mailerConfig.KEY)private readonly mailerConfiguration:ConfigType<typeof MailerConfig>){
-
-        this.transporter = nodemailer.createTransport({
+        try{
+            this.transporter = nodemailer.createTransport({
             host: this.mailerConfiguration.host,
             port: parseInt(this.mailerConfiguration.port!),
             secure:false,
@@ -19,10 +19,13 @@ export class SMTPProvider {
                 pass: this.mailerConfiguration.password
             }
         })
+         console.log("SMTP transporter initialized successfully.");
 
-        if(this.transporter){
-            console.log("SMTP transporter initialized successfully.");
+        }catch(err){
+            console.log("SMTP transporter initialization failed!")
         }
+        
+       
     }
 
     async sendMail(to:string, subject:string, body:string){
@@ -30,10 +33,14 @@ export class SMTPProvider {
             throw new Error("transporter does not initialized yet!")
         }
 
-        await this.transporter.sendMail({
+        try{
+            await this.transporter.sendMail({
             to,
             subject,
             html:body
         })
+        }catch(err){
+            console.log("sending failed... ")
+        }
     }
 }

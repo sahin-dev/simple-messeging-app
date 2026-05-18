@@ -49,6 +49,11 @@ export class UpdateUserDocumentDto {
   @IsOptional()
   document_url?: string;
 
+  @IsEnum(DocumentTypeEnum)
+  @IsNotEmpty()
+  @IsOptional()
+  document_type?: DocumentTypeEnum;
+
   @IsDateString()
   @IsOptional()
   expiry_date?: string; // ISO date string (YYYY-MM-DD)

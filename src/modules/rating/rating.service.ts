@@ -260,6 +260,10 @@ export class RatingService {
       },
     });
 
+    if(!rating){
+      throw new NotFoundException("rating not found")
+    }
+
     return rating;
   }
 
@@ -305,6 +309,7 @@ export class RatingService {
       where: { id: existingRating.id },
       data: {
         rating: updateRatingDto.rating,
+        status:RatingStatus.PENDING
       },
       include: {
         rater: {
