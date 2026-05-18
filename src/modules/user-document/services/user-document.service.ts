@@ -279,6 +279,55 @@ export class UserDocumentService {
   }
 
   /**
+   * Get all user documents (admin only)
+   * Can filter by userId if provided
+   */
+  async getAllUserDocumentsForAdmin(userId?: string) {
+    const whereClause: any = {};
+
+    if (userId) {
+      // If userId is provided, verify the user exists
+      const user = await this.prismaService.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      whereClause.user_id = userId;
+    }
+
+    const documents = await this.prismaService.userDocument.findMany({
+      where: whereClause,
+      include: {
+        user: {
+          select: {
+            id: true,
+            nick_name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: [{ user_id: 'asc' }, { expiry_date: 'asc' }],
+    });
+
+    return documents.map((doc) => ({
+      id: doc.id,
+      user_id: doc.user_id,
+      unique_id: doc.unique_id,
+      document_type: doc.document_type,
+      document_url: doc.document_url,
+      expiry_date: doc.expiry_date,
+      isExpired: doc.expiry_date <= new Date(),
+      daysUntilExpiry: this.getDaysUntilExpiry(doc.expiry_date),
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+      user: doc.user,
+    }));
+  }
+
+  /**
    * Calculate days until document expiry
    */
   private getDaysUntilExpiry(expiryDate: Date): number {

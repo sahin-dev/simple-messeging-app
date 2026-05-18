@@ -13,10 +13,12 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { randomUUID } from 'crypto';
+import { UserRole } from 'generated/prisma/enums';
 import { UserDocumentService } from './services/user-document.service';
 import { DocumentExpiryCheckService } from './services/document-expiry-check.service';
 import {
@@ -29,6 +31,7 @@ import {
   DocumentExpiryWarningsDto,
 } from './dtos/user-document.dto';
 import { ResponseMessage } from '../../common/decorators/apiResponseMessage.decorator';
+import { Roles } from '../../common/decorators/role.decorator';
 import { TokenPayload } from '../auth/types/TokenPayload.type';
 
 @Controller('user-documents')
@@ -405,4 +408,52 @@ export class UserDocumentController {
       );
     }
   }
+
+  /**
+   * Admin endpoint to get all user documents
+   * Can filter by userId via query parameter
+   * Only accessible by admin users
+   */
+  @Get('admin/documents')
+  @Roles(UserRole.ADMIN)
+  @ResponseMessage('User documents retrieved successfully')
+  async getAllUserDocumentsAdmin(
+    @Req() request: Request,
+    @Query('userId') userId?: string,
+  ): Promise<{ documents: any[]; total: number }> {
+    try {
+      const payload = request['payload'] as TokenPayload;
+      this.logger.log(
+        `Admin ${payload.id} fetching user documents${userId ? ` for user ${userId}` : ' (all users)'}`,
+      );
+
+      const documents = await this.userDocumentService.getAllUserDocumentsForAdmin(userId);
+
+      const documentsDto = documents.map((doc) => ({
+        id: doc.id,
+        user_id: doc.user_id,
+        unique_id: doc.unique_id,
+        document_type: doc.document_type,
+        document_url: doc.document_url,
+        expiry_date: doc.expiry_date.toISOString().split('T')[0],
+        isExpired: doc.isExpired,
+        daysUntilExpiry: doc.daysUntilExpiry,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        user: doc.user,
+      }));
+
+      return {
+        documents: documentsDto,
+        total: documentsDto.length,
+      };
+    } catch (err: any) {
+      this.logger.error(`Error fetching user documents: ${err.message}`);
+      throw new HttpException(
+        err.message || 'Failed to fetch user documents',
+        err.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }
+
