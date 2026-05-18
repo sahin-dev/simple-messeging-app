@@ -2,5 +2,8 @@ import { IsString } from 'class-validator';
 
 export class CreatePresetMessageDto {
   @IsString()
-  message: string;
+  message_en: string;
+
+  @IsString()
+  message_it: string;
 }

@@ -11,7 +11,8 @@ export class PresetMessageService {
     
     return this.prismaService.presetMessage.create({
       data: {
-        message: createPresetMessageDto.message,
+        message_en: createPresetMessageDto.message_en,
+        message_it: createPresetMessageDto.message_it,
       },
     });
   }
