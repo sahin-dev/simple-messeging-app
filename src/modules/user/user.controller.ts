@@ -21,6 +21,7 @@ import { BlockUnblockDto } from "./dtos/block-unblock.dto";
 import { TogggleBlockUserDto } from "./dtos/block-user.dto";
 import { DeleteAccountDto } from "./dtos/delete-account.dto";
 import { ScanQrCodeDto } from "./dtos/scan-qr-code.dto";
+import { UpdateUserLocationDto } from "./dtos/update-user-location.dto";
 
 
 @Controller({
@@ -216,5 +217,21 @@ export class UserController {
     async getUserProfile(@Param('id') userId: string) {
         const userProfile = await this.userService.getUserProfile(userId);
         return userProfile;
+    }
+
+    /**
+     * Update user location
+     */
+    @Post("location")
+    @ResponseMessage("User location updated successfully")
+    async updateUserLocation(@Req() request: Request, @Body() updateUserLocationDto: UpdateUserLocationDto) {
+        const tokenPayload = request['payload'] as TokenPayload;
+        const updatedLocation = await this.userService.updateUserLocation(
+            tokenPayload.id,
+            updateUserLocationDto.latitude,
+            updateUserLocationDto.longitude,
+            updateUserLocationDto.accuracy
+        );
+        return updatedLocation;
     }
 }
