@@ -2,6 +2,7 @@
 /dist
 /node_modules
 /build
+/uploads
 firebase-config.json
 # Logs
 logs
@@ -18,6 +19,7 @@ lerna-debug.log*
 # Tests
 /coverage
 /.nyc_output
+
 
 # IDEs and editors
 /.idea

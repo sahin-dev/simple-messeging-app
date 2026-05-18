@@ -821,5 +821,48 @@ export class UserService {
         return { users, total };
       }
 
+    /**
+     * Update user location
+     * @param userId 
+     * @param latitude 
+     * @param longitude 
+     * @param accuracy 
+     * @returns 
+     */
+    async updateUserLocation(userId: string, latitude: number, longitude: number, accuracy?: number) {
+        const user = await this.prismaService.user.findUnique({ where: { id: userId } });
+
+        if (!user) {
+            throw new NotFoundException("User not found");
+        }
+
+        // Check if user location already exists
+        const existingLocation = await this.prismaService.userLocation.findUnique({
+            where: { userId }
+        });
+
+        if (existingLocation) {
+            // Update existing location
+            return await this.prismaService.userLocation.update({
+                where: { userId },
+                data: {
+                    latitude,
+                    longitude,
+                    accuracy
+                }
+            });
+        } else {
+            // Create new location record
+            return await this.prismaService.userLocation.create({
+                data: {
+                    userId,
+                    latitude,
+                    longitude,
+                    accuracy
+                }
+            });
+        }
+    }
+
 
 }
