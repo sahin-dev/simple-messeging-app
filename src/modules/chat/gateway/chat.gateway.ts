@@ -225,11 +225,11 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
             const groupRoomId = this.generateGroupRoomId(data.groupChatRoomId)
 
-            // Broadcast to all group members
-            this.server.to(groupRoomId).emit(EMIT_EVENTS.GROUP_NEW_MESSAGE, {
+            // Broadcast to all group members except sender
+            client.broadcast.to(groupRoomId).emit(EMIT_EVENTS.GROUP_NEW_MESSAGE, {
                 ...message,
                 groupChatRoomId: data.groupChatRoomId,
-                is_mine: message.sender_id === userId
+                is_mine: false
             })
 
             // Confirm to sender
