@@ -334,6 +334,10 @@ export class GroupChatService {
   }
 
   async removeGroupMember(groupChatRoomId: string, userId: string, memberId: string) {
+
+    if(userId === memberId){
+      throw new BadRequestException("You can remove yourself")
+    }
     // Verify requester is admin or removing self
     const requesterMembership = await this.prismaService.groupChatRoomMember.findFirst({
       where: {
