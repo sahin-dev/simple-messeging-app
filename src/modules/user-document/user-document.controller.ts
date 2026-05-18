@@ -282,6 +282,10 @@ export class UserDocumentController {
         finalUpdateDto.expiry_date = updateDto.expiry_date;
       }
 
+      if(updateDto.document_type){
+        finalUpdateDto.document_type = updateDto.document_type
+      }
+
       const document = await this.userDocumentService.updateDocument(
         documentId,
         payload.id,

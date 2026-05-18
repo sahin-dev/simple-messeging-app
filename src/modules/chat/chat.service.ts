@@ -344,6 +344,13 @@ export class ChatService {
     async getRoomMessages(userId: string, getAllMessageDto: GetAllMessagesDto) {
         const skip = (getAllMessageDto.page - 1) * getAllMessageDto.limit;
 
+        const isUserValid = await this.isUserExistOnRoom(userId, getAllMessageDto.roomId)
+        
+        if(!isUserValid){
+            throw new BadRequestException("You are not allowed to see this room.")
+        }
+        
+
         console.log(getAllMessageDto)
 
         const [messages, total] = await Promise.all([
@@ -407,5 +414,18 @@ export class ChatService {
         return chat;
     }
 
-    as
+    async isUserExistOnRoom(userId:string, roomId:string){
+        const room = await this.prismaService.chatRoom.findFirst({where:{
+            id:roomId,
+            OR:[
+                {user1_id:userId},
+                {user2_id:userId}
+            ]
+        }})
+
+        if(room)
+            return true
+
+        return false
+    }
 }
