@@ -67,6 +67,11 @@ export class UpdateUserDocumentFileDto {
   @IsDateString()
   @IsOptional()
   expiry_date?: string; // ISO date string (YYYY-MM-DD)
+
+  @IsEnum(DocumentTypeEnum)
+  @IsNotEmpty()
+  @IsOptional()
+  document_type?: DocumentTypeEnum;
   
   // file is handled by multer, not by class-validator
 }
