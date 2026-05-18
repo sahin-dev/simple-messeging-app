@@ -150,7 +150,8 @@ model Chat {
 
 model PresetMessage {
   id String @id @default(auto()) @map("_id") @db.ObjectId
-  message String
+  message_en String
+  message_it String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
