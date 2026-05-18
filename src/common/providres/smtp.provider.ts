@@ -9,6 +9,7 @@ export class SMTPProvider {
 
     private transporter:Transporter
     constructor(@Inject(mailerConfig.KEY)private readonly mailerConfiguration:ConfigType<typeof MailerConfig>){
+        console.log(mailerConfiguration)
         try{
             this.transporter = nodemailer.createTransport({
             host: this.mailerConfiguration.host,
@@ -40,6 +41,7 @@ export class SMTPProvider {
             html:body
         })
         }catch(err){
+            console.log(err)
             console.log("sending failed... ")
         }
     }

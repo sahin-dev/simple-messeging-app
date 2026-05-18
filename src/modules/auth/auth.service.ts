@@ -139,18 +139,13 @@ export class AuthService {
         const user = await this.userService.addUser(userData);
         
         
-        try{
-            this.smtpProvider.sendMail(
+        this.smtpProvider.sendMail(
         user.email,
         "Welcome to PLATEChatter",
         welcomeEmailTemplate({ name: user.name || user.nick_name || "User" })
         ).then(()=> {
             this.logger.log(`Welcome email sent to ${user.email}`)
         })
-        }catch(err){
-            console.log(err)
-            this.logger.log("sending welcome email failed")
-        }
 
       
         return { message: "Verification email sent to the email", user: { id: user.id, licence_id: user.licence_id, nick_name: user.nick_name,is_email_verified:user.email_verified } };
