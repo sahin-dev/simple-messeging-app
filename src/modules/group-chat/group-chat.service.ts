@@ -424,9 +424,61 @@ export class GroupChatService {
       throw new NotFoundException('You are not a member of this group');
     }
 
+    // Check if user is an admin
+    if (membership.group_role === 'GROUP_ADMIN') {
+      // Count other admins
+      const otherAdminsCount = await this.prismaService.groupChatRoomMember.count({
+        where: {
+          groupChatRoom_id: groupChatRoomId,
+          group_role: 'GROUP_ADMIN',
+          user_id: {
+            not: userId,
+          },
+        },
+      });
+
+      // If no other admins exist, promote the earliest joined member
+      if (otherAdminsCount === 0) {
+        const earliestMember = await this.prismaService.groupChatRoomMember.findFirst({
+          where: {
+            groupChatRoom_id: groupChatRoomId,
+            user_id: {
+              not: userId,
+            },
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        });
+
+        if (earliestMember) {
+          await this.prismaService.groupChatRoomMember.update({
+            where: { id: earliestMember.id },
+            data: { group_role: 'GROUP_ADMIN' },
+          });
+        }
+      }
+    }
+
+    // Delete the member
     await this.prismaService.groupChatRoomMember.delete({
       where: { id: membership.id },
     });
+
+    // Get remaining member count
+    const remainingMembersCount = await this.prismaService.groupChatRoomMember.count({
+      where: {
+        groupChatRoom_id: groupChatRoomId,
+      },
+    });
+
+    // If no members left, delete the group
+    if (remainingMembersCount === 0) {
+      await this.prismaService.groupChatRoom.delete({
+        where: { id: groupChatRoomId },
+      });
+      return { message: 'Left group successfully. Group has been deleted as no members remain' };
+    }
 
     // Update member count
     await this.prismaService.groupChatRoom.update({
