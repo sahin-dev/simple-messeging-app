@@ -1,4 +1,5 @@
 import { Injectable, Inject, Logger, Optional } from '@nestjs/common';
+import { WebSocketServer } from '@nestjs/websockets';
 import { Server } from 'socket.io';
 
 /**
@@ -9,11 +10,11 @@ import { Server } from 'socket.io';
 @Injectable()
 export class SocketRoomService {
   private readonly logger = new Logger(SocketRoomService.name);
-
+    @WebSocketServer()
+    private server?: Server
   constructor(
-    @Optional()
-    @Inject('SOCKET_IO_SERVER')
-    private server?: Server,
+   
+   
   ) {}
 
   /**
