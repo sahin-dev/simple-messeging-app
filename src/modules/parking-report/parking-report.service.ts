@@ -171,9 +171,9 @@ export class ParkingReportService {
       this.prismaService.parkingReport.findMany({
         where: {
           is_active: isActive,
-          createdAt: {
-            gte: tenMinutesAgo, // Only get reports created in the last 10 minutes
-          },
+          // createdAt: {
+          //   gte: tenMinutesAgo, // Only get reports created in the last 10 minutes
+          // },
         },
         skip,
         take: limit,

@@ -336,6 +336,168 @@ export class NotificationDispatcherService {
   }
 
   /**
+   * Dispatch location-based notification to users within radius
+   * Admin endpoint for sending notifications to all users in a specified area
+   * @param latitude - Center latitude
+   * @param longitude - Center longitude
+   * @param radiusKm - Radius in kilometers
+   * @param title - Notification title
+   * @param message - Notification message
+   * @param emailSubject - Email subject (optional)
+   * @param sendEmail - Whether to send email (default: true)
+   * @param sendPushNotification - Whether to send push notification (default: true)
+   * @param smtpProvider - SMTP provider for email sending
+   * @returns Statistics about notifications sent
+   */
+  async dispatchLocationNotification(
+    latitude: number,
+    longitude: number,
+    radiusKm: number,
+    title: string,
+    message: string,
+    emailSubject?: string,
+    sendEmail: boolean = true,
+    sendPushNotification: boolean = true,
+    smtpProvider?: any,
+  ): Promise<{
+    totalUsersFound: number;
+    notificationsSent: number;
+    emailsSent: number;
+    failedCount: number;
+  }> {
+    const radiusMeters = radiusKm * 1000; // Convert km to meters
+    let notificationsSent = 0;
+    let emailsSent = 0;
+    let failedCount = 0;
+
+    try {
+      this.logger.log(
+        `Dispatching location-based notification. Location: (${latitude}, ${longitude}), Radius: ${radiusKm}km`,
+      );
+
+      // Find users within radius
+      const usersInRadius = await this.geolocationService.findUsersWithinRadius(
+        latitude,
+        longitude,
+        radiusMeters,
+      );
+
+      this.logger.log(
+        `Found ${usersInRadius.length} users within ${radiusKm}km radius`,
+      );
+
+      // Send notifications to each user
+      for (const user of usersInRadius) {
+        try {
+          // Check if system notifications are enabled for user
+          const isEnabled =
+            await this.notificationPreferenceService.isNotificationEnabled(
+              user.id,
+              'system',
+            );
+
+          if (!isEnabled) {
+            this.logger.debug(
+              `System notifications disabled for user ${user.id}`,
+            );
+            continue;
+          }
+
+          let sent = false;
+
+          // Send push notification if FCM token exists and enabled
+          if (sendPushNotification && user.fcm_token) {
+            try {
+              await this.sendPushNotification(user.fcm_token, title, message);
+              notificationsSent++;
+              sent = true;
+              this.logger.debug(
+                `Push notification sent to user ${user.id}`,
+              );
+            } catch (err) {
+              this.logger.error(
+                `Failed to send push notification to user ${user.id}:`,
+                err,
+              );
+              failedCount++;
+            }
+          }
+
+          // Send email if enabled and email exists
+          if (sendEmail && user.email && smtpProvider) {
+            try {
+              const locationNotificationTemplate = require('../../../common/templates/locationNotification.template').default;
+              const emailBody = locationNotificationTemplate({
+                userName: user.name || user.nick_name,
+                title,
+                message,
+                location: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+              });
+
+              await smtpProvider.sendMail(
+                user.email,
+                emailSubject || title,
+                emailBody,
+              );
+              emailsSent++;
+              this.logger.debug(`Email sent to user ${user.id}`);
+            } catch (err) {
+              this.logger.error(
+                `Failed to send email to user ${user.id}:`,
+                err,
+              );
+              failedCount++;
+            }
+          }
+
+          // Create notification event
+          if (sent) {
+            try {
+              await this.notificationEventService.createEvent({
+                userId: user.id,
+                eventType: NotificationEventTypeEnum.SYSTEM_NOTIFICATION,
+                title,
+                message,
+                payload: {
+                  latitude,
+                  longitude,
+                  radiusKm,
+                  type: 'LOCATION_BASED',
+                },
+              });
+            } catch (err) {
+              this.logger.error(
+                `Failed to create notification event for user ${user.id}:`,
+                err,
+              );
+            }
+          }
+        } catch (err) {
+          this.logger.error(
+            `Error processing notification for user ${user.id}:`,
+            err,
+          );
+          failedCount++;
+        }
+      }
+
+      this.logger.log(
+        `Location-based notification dispatch completed. Sent: ${notificationsSent} push, ${emailsSent} emails, Failed: ${failedCount}`,
+      );
+
+      return {
+        totalUsersFound: usersInRadius.length,
+        notificationsSent,
+        emailsSent,
+        failedCount,
+      };
+    } catch (err) {
+      this.logger.error(`Error dispatching location-based notifications:`, err);
+      throw err;
+    }
+  }
+
+  /**
    * Send push notification via Firebase Cloud Messaging
    */
   private async sendPushNotification(
