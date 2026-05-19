@@ -7,6 +7,7 @@ import { NotificationEventService } from './services/notification-event.service'
 import { NotificationPreferenceService } from './services/notification-preference.service';
 import { NotificationDispatcherService } from './services/notification-dispatcher.service';
 import { GeolocationService } from '../../common/services/geolocation.service';
+import { SMTPProvider } from '../../common/providres/smtp.provider';
 
 
 @Module({
@@ -18,7 +19,8 @@ import { GeolocationService } from '../../common/services/geolocation.service';
     NotificationPreferenceService,
     NotificationDispatcherService,
     GeolocationService,
-    FireBaseClient
+    FireBaseClient,
+    SMTPProvider
   ],
   exports: [
     NotificationService,
@@ -26,6 +28,7 @@ import { GeolocationService } from '../../common/services/geolocation.service';
     NotificationPreferenceService,
     NotificationDispatcherService,
     GeolocationService,
+    SMTPProvider,
   ],
 })
 export class NotificationModule {}

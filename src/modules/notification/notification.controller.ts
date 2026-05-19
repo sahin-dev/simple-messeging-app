@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, BadRequestException, Inject } from "@nestjs/common";
 import { NotificationService } from "./notification.service";
 import { CreateNotificationDto } from "./dtos/create-notification.dto";
 import { ResponseMessage } from "src/common/decorators/apiResponseMessage.decorator";
@@ -10,7 +10,10 @@ import { UserRole } from "generated/prisma/enums";
 import { UserNotificationsResponseDto } from "./dtos/user-notifications-reponse.dto";
 import { NotificationEventService } from "./services/notification-event.service";
 import { NotificationPreferenceService } from "./services/notification-preference.service";
+import { NotificationDispatcherService } from "./services/notification-dispatcher.service";
 import { UpdateNotificationPreferenceDto, UpdateUserLocationDto } from "./dtos/notification-event.dto";
+import { SendLocationNotificationDto, LocationNotificationResponse } from "./dtos/send-location-notification.dto";
+import { SMTPProvider } from "src/common/providres/smtp.provider";
 
 @Controller({
     path: "notifications"
@@ -21,6 +24,8 @@ export class NotificationController {
         private readonly notificationService: NotificationService,
         private readonly notificationEventService: NotificationEventService,
         private readonly notificationPreferenceService: NotificationPreferenceService,
+        private readonly notificationDispatcherService: NotificationDispatcherService,
+        private readonly smtpProvider: SMTPProvider,
     ) { }
 
     /**
@@ -191,5 +196,51 @@ export class NotificationController {
             true
         );
         return { unreadCount: result.unreadCount };
+    }
+
+    /**
+     * Send location-based notification to all users within radius (Admin only)
+     * Sends both push notifications and emails to users in the specified area
+     */
+    @Post("send-location-based")
+    @Roles(UserRole.ADMIN)
+    @ResponseMessage("location-based notification sent successfully")
+    async sendLocationBasedNotification(
+        @Req() request: any,
+        @Body() sendLocationNotificationDto: SendLocationNotificationDto
+    ): Promise<LocationNotificationResponse> {
+        const tokenPayload = request['payload'] as TokenPayload;
+
+        // Verify admin role
+        if (tokenPayload.role !== UserRole.ADMIN) {
+            throw new BadRequestException("Only administrators can send location-based notifications");
+        }
+
+        try {
+            const result = await this.notificationDispatcherService.dispatchLocationNotification(
+                sendLocationNotificationDto.latitude,
+                sendLocationNotificationDto.longitude,
+                sendLocationNotificationDto.radiusInKm,
+                sendLocationNotificationDto.title,
+                sendLocationNotificationDto.message,
+                sendLocationNotificationDto.emailSubject,
+                sendLocationNotificationDto.sendEmail,
+                sendLocationNotificationDto.sendPushNotification,
+                this.smtpProvider,
+            );
+
+            return {
+                success: true,
+                totalUsersFound: result.totalUsersFound,
+                notificationsSent: result.notificationsSent,
+                emailsSent: result.emailsSent,
+                failedCount: result.failedCount,
+                message: `Notifications sent successfully to ${result.notificationsSent} users via push notification and ${result.emailsSent} users via email`,
+            };
+        } catch (error: any) {
+            throw new BadRequestException(
+                `Failed to send location-based notifications: ${error.message}`
+            );
+        }
     }
 }
