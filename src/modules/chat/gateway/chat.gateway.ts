@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable, UseFilters, UsePipes, ValidationPipe } from "@nestjs/common";
+import { Injectable, UseFilters, UsePipes, ValidationPipe } from "@nestjs/common";
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, SubscribeMessage, WebSocketGateway, WebSocketServer, WsException } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { ChatService } from "../chat.service";
@@ -18,6 +18,7 @@ import { SendGroupMessageDto } from "src/modules/group-chat/dtos/send-group-mess
 import { UpdateGroupChatRoomDto } from "src/modules/group-chat/dtos/update-group-chat-room.dto";
 import { AddGroupMembersDto } from "src/modules/group-chat/dtos/add-group-members.dto";
 import { PaginationDto } from "src/modules/group-chat/dtos/pagination.dto";
+import { SocketRoomService } from "../services/socket-room.service";
 
 
 @WebSocketGateway({
@@ -44,8 +45,16 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         private readonly chatService: ChatService,
         private readonly userService: UserService,
         private readonly groupChatService: GroupChatService,
+        private readonly socketRoomService: SocketRoomService,
         // private readonly server: Server
     ) {}
+
+    /**
+     * Initialize gateway and set server on SocketRoomService
+     */
+    afterInit(server: Server) {
+        this.socketRoomService.setServer(server);
+    }
 
     /**
      * Generate Socket.IO room ID for a group chat
@@ -100,9 +109,7 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         }
     }
 
-    afterInit(server: any) {
-        console.log("Websocket server initialized")
-    }
+    
 
 
     @SubscribeMessage("greeting")
@@ -280,17 +287,21 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
             const userId = client.data.userId
             const groupRoomId = this.generateGroupRoomId(data.groupChatRoomId)
 
+            // Call service to update database and handle admin reassignment if needed
+            const result = await this.groupChatService.leaveGroup(data.groupChatRoomId, userId)
+
+            // Remove user from socket room
             client.leave(groupRoomId)
 
-            // Notify remaining members
-            this.server.to(groupRoomId).emit(EMIT_EVENTS.SUCCESS, {
+            // Notify remaining members that user left
+            this.server.to(groupRoomId).emit(EMIT_EVENTS.GROUP_MEMBER_REMOVED, {
                 message: `User ${userId} left the group`,
                 userId,
                 groupChatRoomId: data.groupChatRoomId
             })
 
             client.emit(EMIT_EVENTS.SUCCESS, {
-                message: "Successfully left group chat"
+                message: result.message || "Successfully left group chat"
             })
         } catch (err: any) {
             console.log(err)
@@ -439,8 +450,9 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
             )
 
             const groupRoomId = this.generateGroupRoomId(data.groupChatRoomId)
+            const memberUserRoomId = this.generateUserRoomId(data.memberId)
 
-            // Notify all group members
+            // Notify all group members that a member was removed
             this.server.to(groupRoomId).emit(EMIT_EVENTS.GROUP_MEMBER_REMOVED, {
                 message: `Member was removed from the group`,
                 memberId: data.memberId,
@@ -448,14 +460,20 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
                 groupChatRoomId: data.groupChatRoomId
             })
 
-            // Notify the removed member
-            this.server.to(this.generateUserRoomId(data.memberId)).emit(EMIT_EVENTS.SUCCESS, {
+            // Notify the removed member and remove them from the socket room
+            this.server.to(memberUserRoomId).emit(EMIT_EVENTS.GROUP_MEMBER_REMOVED, {
                 message: "You've been removed from a group",
-                groupChatRoomId: data.groupChatRoomId
+                groupChatRoomId: data.groupChatRoomId,
+                memberId: data.memberId
             })
 
-            // Remove member from group room
-            this.server.in(groupRoomId).socketsLeave(groupRoomId)
+            // Find and remove the specific user's sockets from the group room
+            const socketsInRoom = await this.server.in(groupRoomId).fetchSockets()
+            for (const socket of socketsInRoom) {
+                if (socket.data.userId === data.memberId) {
+                    socket.leave(groupRoomId)
+                }
+            }
 
             client.emit(EMIT_EVENTS.SUCCESS, {
                 message: "Member removed successfully"

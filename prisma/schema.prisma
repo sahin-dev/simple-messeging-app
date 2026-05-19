@@ -54,6 +54,12 @@ model User {
   notificationEvents NotificationEvent[]
   notificationPreference NotificationPreference?
   userLocation UserLocation?
+  parkingNotificationCredits ParkingNotificationCredit[]
+
+  // Parking notification credit system
+  // First notification is free, then credits are earned by submitting parking reports
+  parking_notifications_available Int @default(1)
+  parking_reports_submitted Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -276,6 +282,34 @@ model ParkingReport {
   updatedAt DateTime @updatedAt
   
   @@map("parking_reports")
+}
+
+model ParkingNotificationCredit {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  
+  user_id String @db.ObjectId
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  parking_report_id String @db.ObjectId
+  
+  // Transaction type: earned (from submitting a report) or consumed (from receiving a notification)
+  transaction_type TransactionType
+  
+  // 1 credit earned or -1 credit consumed
+  amount Int
+  
+  // Running balance after this transaction
+  balance Int
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("parking_notification_credits")
+}
+
+enum TransactionType {
+  EARNED
+  CONSUMED
 }
 
 enum JobType {

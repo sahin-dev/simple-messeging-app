@@ -101,4 +101,23 @@ export class ParkingReportController {
   ) {
     return this.parkingReportService.deleteParkingReport(id, userId);
   }
+
+  @Get('credit/status')
+  @HttpCode(200)
+  @ResponseMessage('User parking notification credits fetched successfully')
+  async getUserParkingCredits(@GetUser('id') userId: string) {
+    return this.parkingReportService.getUserParkingCredits(userId);
+  }
+
+  @Get('credit/history')
+  @HttpCode(200)
+  @ResponseMessage('User parking notification credit history fetched successfully')
+  async getUserParkingCreditHistory(
+    @GetUser('id') userId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    return this.parkingReportService.getUserParkingCreditHistory(userId, page, limit);
+  }
 }
+
