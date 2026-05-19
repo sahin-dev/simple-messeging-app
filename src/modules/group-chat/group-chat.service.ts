@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, forwardRef, Inject, Optional, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGroupChatRoomDto } from './dtos/create-group-chat-room.dto';
 import { SendGroupMessageDto } from './dtos/send-group-message.dto';
@@ -11,7 +11,14 @@ import { UserDelegate, UserWhereInput } from 'generated/prisma/models';
 
 @Injectable()
 export class GroupChatService {
-  constructor(private readonly prismaService: PrismaService) {}
+  private readonly logger = new Logger(GroupChatService.name);
+
+  constructor(
+    private readonly prismaService: PrismaService,
+    @Optional()
+    @Inject('SOCKET_ROOM_SERVICE')
+    private readonly socketRoomService?: any,
+  ) {}
 
   async createGroupChatRoom(userId: string, createGroupChatRoomDto: CreateGroupChatRoomDto) {
     // Ensure creator is included in members
@@ -379,6 +386,16 @@ export class GroupChatService {
       },
     });
 
+    // Remove user from socket.io room if service is available
+    if (this.socketRoomService) {
+      try {
+        await this.socketRoomService.removeUserFromGroupRoom(groupChatRoomId, memberId);
+        await this.socketRoomService.broadcastUserRemoved(groupChatRoomId, memberId, userId);
+      } catch (err) {
+        this.logger.error(`Failed to handle socket.io room removal for member removal:`, err);
+      }
+    }
+
     return { message: 'Member removed successfully' };
   }
 
@@ -475,6 +492,16 @@ export class GroupChatService {
         groupChatRoom_id: groupChatRoomId,
       },
     });
+
+    // Remove user from socket.io room if service is available
+    if (this.socketRoomService) {
+      try {
+        await this.socketRoomService.removeUserFromGroupRoom(groupChatRoomId, userId);
+        await this.socketRoomService.broadcastUserLeft(groupChatRoomId, userId);
+      } catch (err) {
+        this.logger.error(`Failed to handle socket.io room removal for user leaving:`, err);
+      }
+    }
 
     // If no members left, delete the group
     if (remainingMembersCount === 0) {

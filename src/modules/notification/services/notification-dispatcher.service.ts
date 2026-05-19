@@ -21,6 +21,11 @@ export class NotificationDispatcherService {
   /**
    * Dispatch parking availability notification to users within radius
    * This is the main use case for the notification system
+   * Credit System:
+   * - First notification is FREE for every user
+   * - After first free notification, user needs to submit a parking report to get a credit
+   * - Each parking report submission gives 1 credit
+   * - Each notification received consumes 1 credit
    */
   async dispatchParkingNotification(parkingReport: any): Promise<void> {
     try {
@@ -53,6 +58,29 @@ export class NotificationDispatcherService {
 
           if (!shouldNotify || !user.fcm_token) {
             this.logger.debug(`Skipping notification for user ${user.id}`);
+            continue;
+          }
+
+          // Check if user has parking notification credits available
+          const hasCredits = await this.checkParkingNotificationCredits(user.id);
+
+          if (!hasCredits) {
+            this.logger.debug(
+              `User ${user.id} has no parking notification credits available`,
+            );
+            continue;
+          }
+
+          // Consume credit and send notification
+          const creditConsumed = await this.consumeParkingNotificationCredit(
+            user.id,
+            parkingReport.id,
+          );
+
+          if (!creditConsumed) {
+            this.logger.warn(
+              `Failed to consume credit for user ${user.id}, skipping notification`,
+            );
             continue;
           }
 
@@ -365,6 +393,73 @@ export class NotificationDispatcherService {
       parkingReport.latitude,
       parkingReport.longitude,
     );
+  }
+
+  /**
+   * Check if user has available parking notification credits
+   * Credit System:
+   * - User gets 1 free notification initially
+   * - Each parking report submission adds 1 credit
+   * - parking_notifications_available tracks current credits
+   */
+  private async checkParkingNotificationCredits(userId: string): Promise<boolean> {
+    try {
+      const user = await this.prismaService.user.findUnique({
+        where: { id: userId },
+        select: {
+          parking_notifications_available: true,
+        },
+      });
+
+      if (!user) {
+        return false;
+      }
+
+      return user.parking_notifications_available > 0;
+    } catch (err) {
+      this.logger.error(`Error checking parking notification credits for user ${userId}:`, err);
+      return false;
+    }
+  }
+
+  /**
+   * Consume a parking notification credit
+   * Decrements parking_notifications_available and logs the transaction
+   */
+  private async consumeParkingNotificationCredit(
+    userId: string,
+    parkingReportId: string,
+  ): Promise<boolean> {
+    try {
+      const updatedUser = await this.prismaService.user.update({
+        where: { id: userId },
+        data: {
+          parking_notifications_available: { decrement: 1 },
+        },
+      });
+
+      // Track credit consumption transaction
+      await this.prismaService.parkingNotificationCredit.create({
+        data: {
+          user_id: userId,
+          parking_report_id: parkingReportId,
+          transaction_type: 'CONSUMED',
+          amount: -1,
+          balance: updatedUser.parking_notifications_available,
+        },
+      });
+
+      this.logger.log(
+        `Parking notification credit consumed for user ${userId}. Remaining balance: ${updatedUser.parking_notifications_available}`,
+      );
+
+      return true;
+    } catch (err:any) {
+      this.logger.error(
+        `Error consuming parking notification credit for user ${userId}: ${err.message}`,
+      );
+      return false;
+    }
   }
 
   /**

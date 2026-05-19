@@ -67,6 +67,36 @@ export class ParkingReportService {
       },
     });
 
+    // Increment parking report credit for the user
+    try {
+      const updatedUser = await this.prismaService.user.update({
+        where: { id: userId },
+        data: {
+          parking_reports_submitted: { increment: 1 },
+          parking_notifications_available: { increment: 1 },
+        },
+      });
+
+      // Track credit transaction
+      await this.prismaService.parkingNotificationCredit.create({
+        data: {
+          user_id: userId,
+          parking_report_id: report.id,
+          transaction_type: 'EARNED',
+          amount: 1,
+          balance: updatedUser.parking_notifications_available,
+        },
+      });
+
+      this.logger.log(
+        `Parking report credit earned for user ${userId}. New balance: ${updatedUser.parking_notifications_available}`,
+      );
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to update parking notification credit for user ${userId}: ${err.message}`,
+      );
+    }
+
     const formattedReport = this.formatReportResponse(report);
 
     // Trigger parking availability notification to nearby users
@@ -379,5 +409,66 @@ export class ParkingReportService {
 
     return this.formatReportResponse(deactivatedReport);
   }
+
+  /**
+   * Get user's parking notification credit information
+   * Shows how many notifications they have available and their submission history
+   */
+  async getUserParkingCredits(userId: string) {
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+      select: {
+        parking_notifications_available: true,
+        parking_reports_submitted: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    // Calculate notifications received = reports submitted - available + 1 (the free one)
+    const notificationsReceived =
+      user.parking_reports_submitted - user.parking_notifications_available + 1;
+
+    return {
+      parking_notifications_available: user.parking_notifications_available,
+      parking_reports_submitted: user.parking_reports_submitted,
+      notifications_received: Math.max(0, notificationsReceived), // Ensure it's not negative
+    };
+  }
+
+  /**
+   * Get user's parking notification credit transaction history
+   * Shows all earned and consumed credits
+   */
+  async getUserParkingCreditHistory(
+    userId: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    const skip = (page - 1) * limit;
+
+    const [transactions, total] = await Promise.all([
+      this.prismaService.parkingNotificationCredit.findMany({
+        where: { user_id: userId },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prismaService.parkingNotificationCredit.count({
+        where: { user_id: userId },
+      }),
+    ]);
+
+    return {
+      transactions,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
 }
+
 

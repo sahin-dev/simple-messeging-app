@@ -6,13 +6,22 @@ import { UserModule } from '../user/user.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { GroupChatModule } from '../group-chat/group-chat.module';
 import { RatingModule } from '../rating/rating.module';
+import { SocketRoomService } from './services/socket-room.service';
 
 
 @Module({
     imports:[forwardRef(() => UserModule), PrismaModule, GroupChatModule, RatingModule],
     controllers:[ChatController],
-    providers:[ChatService, SocketGateway],
-    exports:[ChatService, SocketGateway]
+    providers:[
+      ChatService, 
+      SocketGateway, 
+      SocketRoomService,
+      {
+        provide: 'SOCKET_ROOM_SERVICE',
+        useClass: SocketRoomService,
+      }
+    ],
+    exports:[ChatService, SocketGateway, SocketRoomService, 'SOCKET_ROOM_SERVICE']
 })
 export class ChatModule implements OnModuleInit{
 
