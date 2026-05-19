@@ -192,9 +192,9 @@ export class ParkingReportService {
       this.prismaService.parkingReport.count({
         where: {
           is_active: isActive,
-          createdAt: {
-            gte: tenMinutesAgo,
-          },
+          // createdAt: {
+          //   gte: tenMinutesAgo,
+          // },
         },
       }),
     ]);
