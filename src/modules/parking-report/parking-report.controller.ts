@@ -14,10 +14,11 @@ import { ParkingReportService } from './parking-report.service';
 import { CreateParkingReportDto, UpdateParkingReportDto } from './dtos';
 import { ResponseMessage } from 'src/common/decorators/apiResponseMessage.decorator';
 import { GetUser } from 'src/common/decorators';
+import { CreateParkingSpotDto } from './dtos/create-parking-spot.dto';
 
 @Controller('parking-report')
 export class ParkingReportController {
-  constructor(private readonly parkingReportService: ParkingReportService) {}
+  constructor(private readonly parkingReportService: ParkingReportService) { }
 
   @Post()
   @HttpCode(201)
@@ -27,6 +28,34 @@ export class ParkingReportController {
     @Body() createParkingReportDto: CreateParkingReportDto,
   ) {
     return this.parkingReportService.createParkingReport(userId, createParkingReportDto);
+  }
+
+  // ---------- Parking Spot Endpoints ----------
+  @Post('spot')
+  @HttpCode(201)
+  @ResponseMessage('Parking spot created successfully')
+  async createParkingSpot(
+    @GetUser('id') userId: string,
+    @Body() createParkingSpotDto: CreateParkingSpotDto,
+  ) {
+    return this.parkingReportService.createParkingSpot(userId, createParkingSpotDto);
+  }
+
+  @Get('spot')
+  @HttpCode(200)
+  @ResponseMessage('Parking spots fetched successfully')
+  async getAllParkingSpots(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    return this.parkingReportService.getAllParkingSpots(page, limit);
+  }
+
+  @Get('spot/:id')
+  @HttpCode(200)
+  @ResponseMessage('Parking spot fetched successfully')
+  async getParkingSpotById(@Param('id') id: string) {
+    return this.parkingReportService.getParkingSpotById(id);
   }
 
   @Get()

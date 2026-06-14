@@ -4,12 +4,17 @@ import { ParkingType, ParkingCost, DisabledFacilityLocation } from 'src/common/e
 export class CreateParkingReportDto {
 
 
+  @IsOptional()
   @IsNumber()
-  latitude: number;
+  latitude?: number;
 
+  @IsOptional()
   @IsNumber()
-  longitude: number;
+  longitude?: number;
 
+  @IsOptional()
+  @IsString()
+  spotId?: string;
 
   @IsEnum(ParkingCost)
   parking_cost: ParkingCost;

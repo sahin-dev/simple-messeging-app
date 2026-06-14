@@ -1,4 +1,4 @@
-import { IsMongoId, IsNotEmpty, IsNumber, IsString, Max, Min } from 'class-validator';
+import { IsMongoId, IsNotEmpty, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class CreateRatingDto {
   @IsString()
@@ -11,4 +11,9 @@ export class CreateRatingDto {
   @Min(1)
   @Max(5)
   rating: number;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(500)
+  review?: string;
 }
