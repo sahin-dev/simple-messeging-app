@@ -14,22 +14,22 @@ datasource db {
 }
 
 model User {
-  id     String  @id @default(auto()) @map("_id") @db.ObjectId
-  avatar String?
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  avatar    String?
   fcm_token String?
 
-  email      String @unique
-  name       String?
-  licence_id String?
-  nick_name  String @unique
-  password   String
-  is_more_options_accepted   Boolean  @default(false)
-  designation String?
-  is_blocked  Boolean  @default(false)
-  is_deleted  Boolean  @default(false)
-  email_verified Boolean @default(false)
-  account_type AccountType @default(FREE)
-  qr_code String?
+  email                    String      @unique
+  name                     String?
+  licence_id               String?
+  nick_name                String      @unique
+  password                 String
+  is_more_options_accepted Boolean     @default(false)
+  designation              String?
+  is_blocked               Boolean     @default(false)
+  is_deleted               Boolean     @default(false)
+  email_verified           Boolean     @default(false)
+  account_type             AccountType @default(FREE)
+  qr_code                  String?
 
   otp                    String?
   otp_expires            DateTime?
@@ -37,29 +37,29 @@ model User {
 
   role UserRole @default(USER)
 
-  chatRooms_user1 ChatRoom[]  @relation("user1")
-  chatRooms_user2 ChatRoom[]  @relation("user2")
-  blockLists      BlockList[] @relation("user")
-  blockListsBy    BlockList[] @relation("blocked_user")
-  sentMessages     Chat[] @relation("sender")
-  receivedMessages Chat[] @relation("receiver")
+  chatRooms_user1  ChatRoom[]  @relation("user1")
+  chatRooms_user2  ChatRoom[]  @relation("user2")
+  blockLists       BlockList[] @relation("user")
+  blockListsBy     BlockList[] @relation("blocked_user")
+  sentMessages     Chat[]      @relation("sender")
+  receivedMessages Chat[]      @relation("receiver")
 
-  groupChatRooms GroupChatRoomMember[]
-  groupChats     GroupChat[] @relation("sender")
-  userRatingsGiven UserRating[] @relation("rater")
-  userRatingsReceived UserRating[] @relation("ratee")
-  parkingReports ParkingReport[]
-  documents UserDocument[]
-  
-  notificationEvents NotificationEvent[]
-  notificationPreference NotificationPreference?
-  userLocation UserLocation?
+  groupChatRooms      GroupChatRoomMember[]
+  groupChats          GroupChat[]           @relation("sender")
+  userRatingsGiven    UserRating[]          @relation("rater")
+  userRatingsReceived UserRating[]          @relation("ratee")
+  parkingReports      ParkingReport[]
+  documents           UserDocument[]
+
+  notificationEvents         NotificationEvent[]
+  notificationPreference     NotificationPreference?
+  userLocation               UserLocation?
   parkingNotificationCredits ParkingNotificationCredit[]
 
   // Parking notification credit system
   // First notification is free, then credits are earned by submitting parking reports
   parking_notifications_available Int @default(1)
-  parking_reports_submitted Int @default(0)
+  parking_reports_submitted       Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -68,10 +68,10 @@ model User {
 }
 
 model ChatRoom {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
+  id         String  @id @default(auto()) @map("_id") @db.ObjectId
   is_deleted Boolean @default(false)
-  user1_id String @db.ObjectId
-  user2_id String @db.ObjectId
+  user1_id   String  @db.ObjectId
+  user2_id   String  @db.ObjectId
 
   user1 User @relation("user1", fields: [user1_id], references: [id], onDelete: Cascade)
   user2 User @relation("user2", fields: [user2_id], references: [id], onDelete: Cascade)
@@ -86,12 +86,12 @@ model ChatRoom {
 }
 
 model GroupChatRoom {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
-  name String
-  image String?
-  is_deleted Boolean @default(false)
-  group_members_count Int @default(0)
-  members GroupChatRoomMember[]
+  id                  String                @id @default(auto()) @map("_id") @db.ObjectId
+  name                String
+  image               String?
+  is_deleted          Boolean               @default(false)
+  group_members_count Int                   @default(0)
+  members             GroupChatRoomMember[]
 
   chats GroupChat[]
 
@@ -102,15 +102,15 @@ model GroupChatRoom {
 }
 
 model GroupChatRoomMember {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
-  groupChatRoom_id String @db.ObjectId
-  user_id String @db.ObjectId
-  last_read_message_id String? @db.ObjectId
-  group_role GroupRole @default(GROUP_MEMBER)
+  id                   String    @id @default(auto()) @map("_id") @db.ObjectId
+  groupChatRoom_id     String    @db.ObjectId
+  user_id              String    @db.ObjectId
+  last_read_message_id String?   @db.ObjectId
+  group_role           GroupRole @default(GROUP_MEMBER)
 
   groupChatRoom GroupChatRoom @relation(fields: [groupChatRoom_id], references: [id], onDelete: Cascade)
   user          User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
- 
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -119,14 +119,14 @@ model GroupChatRoomMember {
 }
 
 model GroupChat {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
-  groupChatRoom_id String @db.ObjectId
-  sender_id String @db.ObjectId
-  message String
-  type MessageType @default(TEXT)
+  id               String      @id @default(auto()) @map("_id") @db.ObjectId
+  groupChatRoom_id String      @db.ObjectId
+  sender_id        String      @db.ObjectId
+  message          String
+  type             MessageType @default(TEXT)
 
   groupChatRoom GroupChatRoom @relation(fields: [groupChatRoom_id], references: [id], onDelete: Cascade)
-  sender User @relation(fields: [sender_id], references: [id], onDelete: Cascade, name: "sender")
+  sender        User          @relation(fields: [sender_id], references: [id], onDelete: Cascade, name: "sender")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -155,44 +155,45 @@ model Chat {
 }
 
 model PresetMessage {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
-  message String
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  message    String
   message_it String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@map("preset_messages")
 }
 
 model UsefullNumber {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
-  title String
-  phone String
-  location location
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  phone       String
+  location    location
   geolocation geolocation?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
   @@map("useful_numbers")
 }
 
 type location {
-  latitude Float
+  latitude  Float
   longitude Float
 }
 
 type geolocation {
-  type String
+  type        String
   coordinates Float[]
 }
-
 
 model UserRating {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  rater_id String @db.ObjectId
-  ratee_id String @db.ObjectId
-  rating Int
-  status RatingStatus @default(PENDING)
+  rater_id String       @db.ObjectId
+  ratee_id String       @db.ObjectId
+  rating   Int
+  review   String?
+  status   RatingStatus @default(PENDING)
 
   rater User @relation("rater", fields: [rater_id], references: [id], onDelete: Cascade)
   ratee User @relation("ratee", fields: [ratee_id], references: [id], onDelete: Cascade)
@@ -203,8 +204,6 @@ model UserRating {
   @@unique([rater_id, ratee_id])
   @@map("user_ratings")
 }
-
-
 
 model BlockList {
   id String @id @default(auto()) @map("_id") @db.ObjectId
@@ -240,11 +239,11 @@ enum MessageType {
 }
 
 model Point {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
-  name String
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
   description String?
-  latitude Float
-  longitude Float
+  latitude    Float
+  longitude   Float
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -264,46 +263,58 @@ model BlackListedWord {
 }
 
 model ParkingReport {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
-  
-  user_id String @db.ObjectId
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
-  latitude Float
-  longitude Float
-  parking_cost ParkingCost
-  electric_charging Boolean @default(false)
-  disabled_facility Boolean @default(false)
-  disabled_facility_location DisabledFacilityLocation?
-  is_active Boolean @default(true)
-  expiresAt DateTime
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
+  id                         String                   @id @default(auto()) @map("_id") @db.ObjectId
+  user_id                    String                   @db.ObjectId
+  user                       User                     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  latitude                   Float
+  longitude                  Float
+  parking_cost               ParkingCost
+  electric_charging          Boolean
+  disabled_facility          Boolean
+  disabled_facility_location DisabledFacilityLocation
+  is_active                  Boolean                  @default(true)
+  createdAt                  DateTime                 @default(now())
+  expiresAt                  DateTime?
+  spotId                     String?                  @db.ObjectId
+  spot                       ParkingSpot?             @relation(fields: [spotId], references: [id])
+  updatedAt                  DateTime                 @updatedAt
+
   @@map("parking_reports")
+}
+
+model ParkingSpot {
+  id                         String                   @id @default(auto()) @map("_id") @db.ObjectId
+  latitude                   Float
+  longitude                  Float
+  parking_cost               ParkingCost
+  electric_charging          Boolean
+  disabled_facility          Boolean
+  disabled_facility_location DisabledFacilityLocation
+  is_active                  Boolean                  @default(true)
+  createdAt                  DateTime                 @default(now())
+  reports                    ParkingReport[]
 }
 
 model ParkingNotificationCredit {
   id String @id @default(auto()) @map("_id") @db.ObjectId
-  
+
   user_id String @db.ObjectId
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
   parking_report_id String @db.ObjectId
-  
+
   // Transaction type: earned (from submitting a report) or consumed (from receiving a notification)
   transaction_type TransactionType
-  
+
   // 1 credit earned or -1 credit consumed
   amount Int
-  
+
   // Running balance after this transaction
   balance Int
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@map("parking_notification_credits")
 }
 
@@ -381,22 +392,22 @@ enum NotificationEventType {
 }
 
 model NotificationEvent {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   eventType NotificationEventType
   title     String
   message   String
   payload   String?
-  
-  isRead    Boolean  @default(false)
-  sentAt    DateTime @default(now())
-  readAt    DateTime?
-  
+
+  isRead Boolean   @default(false)
+  sentAt DateTime  @default(now())
+  readAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([userId])
   @@index([eventType])
   @@index([isRead])
@@ -405,51 +416,51 @@ model NotificationEvent {
 }
 
 model NotificationPreference {
-  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId                  String   @unique @db.ObjectId
-  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  parkingNotifications    Boolean  @default(true)
-  chatNotifications       Boolean  @default(true)
-  ratingNotifications     Boolean  @default(true)
-  groupChatNotifications  Boolean  @default(true)
-  systemNotifications     Boolean  @default(true)
-  
-  notificationRadius      Int      @default(200)
-  
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @unique @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  parkingNotifications   Boolean @default(true)
+  chatNotifications      Boolean @default(true)
+  ratingNotifications    Boolean @default(true)
+  groupChatNotifications Boolean @default(true)
+  systemNotifications    Boolean @default(true)
+
+  notificationRadius Int @default(200)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@map("notification_preferences")
 }
 
 model UserLocation {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @unique @db.ObjectId
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @unique @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   latitude  Float
   longitude Float
   accuracy  Float?
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@map("user_locations")
 }
 
-model UserDocument{
-  id String @id @default(auto()) @map("_id") @db.ObjectId
-  user_id String @db.ObjectId
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  unique_id String @unique
-  expiry_date DateTime
+model UserDocument {
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  user_id       String       @db.ObjectId
+  user          User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  unique_id     String       @unique
+  expiry_date   DateTime
   document_type DocumentType
-  document_url String
-  
+  document_url  String
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@map("user_documents")
 }
 

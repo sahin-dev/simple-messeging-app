@@ -8,6 +8,7 @@ import { group } from 'console';
 import { User } from 'generated/prisma/browser';
 import { DefaultArgs } from '@prisma/client/runtime/library';
 import { UserDelegate, UserWhereInput } from 'generated/prisma/models';
+import * as fs from 'fs';
 
 @Injectable()
 export class GroupChatService {
@@ -20,14 +21,16 @@ export class GroupChatService {
     private readonly socketRoomService?: any,
   ) {}
 
-  async createGroupChatRoom(userId: string, createGroupChatRoomDto: CreateGroupChatRoomDto) {
+  async createGroupChatRoom(userId: string, createGroupChatRoomDto: CreateGroupChatRoomDto, file?: Express.Multer.File) {
     // Ensure creator is included in members
     const memberIds = [...new Set([userId, ...createGroupChatRoomDto.memberIds])];
+
+    const imagePath = file ? file.path.replace(/\\/g, '/') : createGroupChatRoomDto.image;
 
     const groupChatRoom = await this.prismaService.groupChatRoom.create({
       data: {
         name: createGroupChatRoomDto.name,
-        image: createGroupChatRoomDto.image,
+        image: imagePath,
         group_members_count: memberIds.length,
         members: {
           createMany: {
@@ -399,7 +402,7 @@ export class GroupChatService {
     return { message: 'Member removed successfully' };
   }
 
-  async updateGroupChatRoom(groupChatRoomId: string, userId: string, updateDto: UpdateGroupChatRoomDto) {
+  async updateGroupChatRoom(groupChatRoomId: string, userId: string, updateDto: UpdateGroupChatRoomDto, file?: Express.Multer.File) {
     // Verify requester is admin
     const membership = await this.prismaService.groupChatRoomMember.findFirst({
       where: {
@@ -412,9 +415,26 @@ export class GroupChatService {
       throw new BadRequestException('Only group admin can update group details');
     }
 
+    const room = await this.prismaService.groupChatRoom.findUnique({
+      where: { id: groupChatRoomId },
+    });
+
+    if (!room) {
+      throw new NotFoundException('Group chat room not found');
+    }
+
+    if (file && room.image) {
+      this.deleteGroupImage(room.image);
+    }
+
+    const imagePath = file ? file.path.replace(/\\/g, '/') : updateDto.image;
+
     const updatedRoom = await this.prismaService.groupChatRoom.update({
       where: { id: groupChatRoomId },
-      data: updateDto,
+      data: {
+        name: updateDto.name,
+        image: imagePath,
+      },
       include: {
         members: {
           include: {
@@ -431,6 +451,20 @@ export class GroupChatService {
     });
 
     return updatedRoom;
+  }
+
+  private deleteGroupImage(imagePath: string) {
+    try {
+      if (imagePath) {
+        const normalizedPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+        if (fs.existsSync(normalizedPath)) {
+          fs.unlinkSync(normalizedPath);
+          this.logger.log(`Old group image deleted successfully: ${normalizedPath}`);
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Failed to delete old group image: ${error.message}`);
+    }
   }
 
   async leaveGroup(groupChatRoomId: string, userId: string) {

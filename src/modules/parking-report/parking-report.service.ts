@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { CreateParkingSpotDto } from './dtos/create-parking-spot.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateParkingReportDto, UpdateParkingReportDto } from './dtos';
 import { DisabledFacilityLocation } from 'generated/prisma/enums';
@@ -12,7 +13,7 @@ export class ParkingReportService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly notificationDispatcherService: NotificationDispatcherService,
-  ) {}
+  ) { }
 
   /**
    * Calculate expiration time (current time + 10 minutes)
@@ -47,8 +48,8 @@ export class ParkingReportService {
     const report = await this.prismaService.parkingReport.create({
       data: {
         user_id: userId,
-        latitude: createParkingReportDto.latitude,
-        longitude: createParkingReportDto.longitude,
+        latitude: createParkingReportDto.latitude!,
+        longitude: createParkingReportDto.longitude!,
         parking_cost: createParkingReportDto.parking_cost,
         electric_charging: createParkingReportDto.electric_charging,
         disabled_facility: createParkingReportDto.disabled_facility,
@@ -104,7 +105,7 @@ export class ParkingReportService {
       this.notificationDispatcherService.dispatchParkingNotification(report).catch((err) => {
         this.logger.error(`Failed to dispatch parking notification: ${err.message}`);
       });
-    } catch (err:any) {
+    } catch (err: any) {
       this.logger.error(`Error triggering parking notification: ${err.message}`);
     }
 
@@ -312,6 +313,40 @@ export class ParkingReportService {
     const formattedReports = this.filterActiveReports(reports);
 
     return { reports: formattedReports, total: formattedReports.length, page, limit };
+  }
+
+  // ---------- Parking Spot Service Methods ----------
+  async createParkingSpot(userId: string, createParkingSpotDto: CreateParkingSpotDto) {
+    const spot = await this.prismaService.parkingSpot.create({
+      data: {
+        latitude: createParkingSpotDto.latitude,
+        longitude: createParkingSpotDto.longitude,
+        parking_cost: createParkingSpotDto.parking_cost,
+        electric_charging: createParkingSpotDto.electric_charging,
+        disabled_facility: createParkingSpotDto.disabled_facility,
+        disabled_facility_location: DisabledFacilityLocation[createParkingSpotDto.disabled_facility_location],
+      },
+    });
+    return spot;
+  }
+
+  async getAllParkingSpots(page = 1, limit = 10) {
+    const skip = (page - 1) * limit;
+    const [spots, total] = await Promise.all([
+      this.prismaService.parkingSpot.findMany({ skip, take: limit }),
+      this.prismaService.parkingSpot.count(),
+    ]);
+    return { spots, total, page, limit };
+  }
+
+  async getParkingSpotById(id: string) {
+    const spot = await this.prismaService.parkingSpot.findUnique({
+      where: { id },
+    });
+    if (!spot) {
+      throw new NotFoundException(`Parking spot with ID ${id} not found`);
+    }
+    return spot;
   }
 
   async updateParkingReport(id: string, userId: string, updateParkingReportDto: UpdateParkingReportDto) {

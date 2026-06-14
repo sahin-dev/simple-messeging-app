@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Put, Delete, Body, Param, Query, Req, HttpCode, Patch } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Body, Param, Query, Req, HttpCode, Patch, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { GroupChatService } from './group-chat.service';
 import { CreateGroupChatRoomDto } from './dtos/create-group-chat-room.dto';
 import { SendGroupMessageDto } from './dtos/send-group-message.dto';
@@ -7,20 +7,37 @@ import { AddGroupMembersDto } from './dtos/add-group-members.dto';
 import { PaginationDto } from './dtos/pagination.dto';
 import { TokenPayload } from '../auth/types/TokenPayload.type';
 import { ResponseMessage } from 'src/common/decorators/apiResponseMessage.decorator';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { randomUUID } from 'crypto';
 
 @Controller('group')
 export class GroupChatController {
-  constructor(private readonly groupChatService: GroupChatService) {}
+  constructor(private readonly groupChatService: GroupChatService) { }
 
   @Post('room')
   @HttpCode(201)
+  @UseInterceptors(FileInterceptor('image', {
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    storage: diskStorage({
+      destination: './uploads/groups',
+      filename: (req, file, cb) => {
+        const uuid = randomUUID().toString();
+        const ext = file.originalname.split('.').pop() || 'png';
+        cb(null, `group_${uuid}.${ext}`);
+      }
+    })
+  }))
+
+
   @ResponseMessage('Group chat room created successfully')
   async createGroupChatRoom(
     @Req() request: Request,
     @Body() createGroupChatRoomDto: CreateGroupChatRoomDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
     const payload = request['payload'] as TokenPayload;
-    return this.groupChatService.createGroupChatRoom(payload.id, createGroupChatRoomDto);
+    return this.groupChatService.createGroupChatRoom(payload.id, createGroupChatRoomDto, file);
   }
 
   @Post('message')
@@ -95,14 +112,26 @@ export class GroupChatController {
 
   @Patch('room/:roomId')
   @HttpCode(200)
+  @UseInterceptors(FileInterceptor('image', {
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    storage: diskStorage({
+      destination: './uploads/groups',
+      filename: (req, file, cb) => {
+        const uuid = randomUUID().toString();
+        const ext = file.originalname.split('.').pop() || 'png';
+        cb(null, `group_${uuid}.${ext}`);
+      }
+    })
+  }))
   @ResponseMessage('Group chat room updated successfully')
   async updateGroupChatRoom(
     @Req() request: Request,
     @Param('roomId') roomId: string,
     @Body() updateDto: UpdateGroupChatRoomDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
     const payload = request['payload'] as TokenPayload;
-    return this.groupChatService.updateGroupChatRoom(roomId, payload.id, updateDto);
+    return this.groupChatService.updateGroupChatRoom(roomId, payload.id, updateDto, file);
   }
 
   @Delete('room/:roomId/leave')

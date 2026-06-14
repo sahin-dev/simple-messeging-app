@@ -1,0 +1,131 @@
+{
+  "info": {
+    "_postman_id": "group-chat-http-endpoints",
+    "name": "Group Chat HTTP Endpoints",
+    "description": "Postman collection for testing the Group Chat HTTP endpoints, specifically creation and updates using multipart/form-data for image upload.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Create Group Room",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{auth_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "name",
+              "value": "My New Group Room",
+              "type": "text"
+            },
+            {
+              "key": "memberIds",
+              "value": "[\"66123456789abcdef0123456\", \"66123456789abcdef0123457\"]",
+              "description": "JSON array of user IDs, or comma-separated list of user IDs",
+              "type": "text"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": [],
+              "description": "Upload group image file"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/group/room",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "group",
+            "room"
+          ]
+        },
+        "description": "Create a new group chat room with a group name, list of member user IDs, and an optional group image file."
+      },
+      "response": []
+    },
+    {
+      "name": "Update Group Room",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{auth_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "name",
+              "value": "Updated Group Name",
+              "type": "text"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": [],
+              "description": "Upload new group image file"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/group/room/:roomId",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "group",
+            "room",
+            ":roomId"
+          ],
+          "variable": [
+            {
+              "key": "roomId",
+              "value": "{{group_room_id}}",
+              "description": "The ID of the group chat room to update"
+            }
+          ]
+        },
+        "description": "Update an existing group chat room's name and/or group image. Only group admins are authorized to perform this update."
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "your-auth-token-here",
+      "type": "string"
+    },
+    {
+      "key": "group_room_id",
+      "value": "your-group-room-id-here",
+      "type": "string"
+    }
+  ]
+}

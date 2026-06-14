@@ -45,6 +45,7 @@ export class RatingService {
         rater_id: userId,
         ratee_id: createRatingDto.ratee_id,
         rating: createRatingDto.rating,
+        review: createRatingDto.review,
         status: 'PENDING',
       },
       include: {
@@ -309,6 +310,7 @@ export class RatingService {
       where: { id: existingRating.id },
       data: {
         rating: updateRatingDto.rating,
+        review: updateRatingDto.review,
         status:RatingStatus.PENDING
       },
       include: {
