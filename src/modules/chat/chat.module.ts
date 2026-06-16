@@ -18,7 +18,7 @@ import { SocketRoomService } from './services/socket-room.service';
       SocketRoomService,
       {
         provide: 'SOCKET_ROOM_SERVICE',
-        useClass: SocketRoomService,
+        useExisting: SocketRoomService,
       }
     ],
     exports:[ChatService, SocketGateway, SocketRoomService, 'SOCKET_ROOM_SERVICE']

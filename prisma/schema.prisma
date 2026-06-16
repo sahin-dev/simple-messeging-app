@@ -124,6 +124,10 @@ model GroupChat {
   sender_id        String      @db.ObjectId
   message          String
   type             MessageType @default(TEXT)
+  file_url         String?
+  file_name        String?
+  file_size        Int?
+  file_mime_type   String?
 
   groupChatRoom GroupChatRoom @relation(fields: [groupChatRoom_id], references: [id], onDelete: Cascade)
   sender        User          @relation(fields: [sender_id], references: [id], onDelete: Cascade, name: "sender")
@@ -143,6 +147,10 @@ model Chat {
   type         MessageType @default(TEXT)
   is_read      Boolean     @default(false)
   is_delivered Boolean     @default(false)
+  file_url     String?
+  file_name    String?
+  file_size    Int?
+  file_mime_type String?
 
   chatRoom ChatRoom @relation(fields: [chatRoom_id], references: [id], onDelete: Cascade)
   sender   User     @relation("sender", fields: [sender_id], references: [id], onDelete: Cascade)
@@ -236,6 +244,7 @@ model SitePolicy {
 
 enum MessageType {
   TEXT
+  FILE
 }
 
 model Point {
@@ -271,7 +280,7 @@ model ParkingReport {
   parking_cost               ParkingCost
   electric_charging          Boolean
   disabled_facility          Boolean
-  disabled_facility_location DisabledFacilityLocation
+  disabled_facility_location DisabledFacilityLocation?
   is_active                  Boolean                  @default(true)
   createdAt                  DateTime                 @default(now())
   expiresAt                  DateTime?
@@ -289,7 +298,7 @@ model ParkingSpot {
   parking_cost               ParkingCost
   electric_charging          Boolean
   disabled_facility          Boolean
-  disabled_facility_location DisabledFacilityLocation
+  disabled_facility_location DisabledFacilityLocation?
   is_active                  Boolean                  @default(true)
   createdAt                  DateTime                 @default(now())
   reports                    ParkingReport[]
