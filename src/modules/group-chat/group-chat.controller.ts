@@ -2,6 +2,7 @@ import { Controller, Post, Get, Put, Delete, Body, Param, Query, Req, HttpCode, 
 import { GroupChatService } from './group-chat.service';
 import { CreateGroupChatRoomDto } from './dtos/create-group-chat-room.dto';
 import { SendGroupMessageDto } from './dtos/send-group-message.dto';
+import { SendGroupFileDto } from './dtos/send-group-file.dto';
 import { UpdateGroupChatRoomDto } from './dtos/update-group-chat-room.dto';
 import { AddGroupMembersDto } from './dtos/add-group-members.dto';
 import { PaginationDto } from './dtos/pagination.dto';
@@ -49,6 +50,29 @@ export class GroupChatController {
   ) {
     const payload = request['payload'] as TokenPayload;
     return this.groupChatService.sendGroupMessage(payload.id, sendGroupMessageDto);
+  }
+
+  @Post('message/file')
+  @HttpCode(201)
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    storage: diskStorage({
+      destination: './uploads/chats',
+      filename: (req, file, cb) => {
+        const uuid = randomUUID().toString();
+        const ext = file.originalname.split('.').pop() || 'bin';
+        cb(null, `group_chat_${uuid}.${ext}`);
+      }
+    })
+  }))
+  @ResponseMessage('Group file sent successfully')
+  async sendGroupFileMessage(
+    @Req() request: Request,
+    @Body() sendGroupFileDto: SendGroupFileDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const payload = request['payload'] as TokenPayload;
+    return this.groupChatService.sendGroupFileMessage(payload.id, sendGroupFileDto, file);
   }
 
   @Get('rooms')

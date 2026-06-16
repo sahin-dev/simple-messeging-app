@@ -153,10 +153,9 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     }
 
 
-    @SubscribeMessage(SUBSCRIBED_EVENTS.SEND_FILE)
-    async handleFile(receiverId: string, chat: any) {
-        this.server.to(this.generateUserRoomId(receiverId)).emit(EMIT_EVENTS.NEW_MESSAGE, chat)
-    }
+    // File messages are sent via HTTP POST /chat/message/file
+    // The socket events (new-message / message-sent) are emitted
+    // from ChatService.sendFileMessage() using SocketRoomService.
 
     @SubscribeMessage(SUBSCRIBED_EVENTS.FETCH_CHAT_ROOMS)
     async getAllUserRooms(@MessageBody() getUserRoomsDto: GetUserRoomsDto, @ConnectedSocket() client: Socket) {

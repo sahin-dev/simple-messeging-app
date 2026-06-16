@@ -1,0 +1,138 @@
+{
+  "info": {
+    "_postman_id": "chat-file-sending-endpoints",
+    "name": "Chat File Sending Endpoints",
+    "description": "Postman collection for testing the new individual and group chat file sending endpoints, utilizing multipart/form-data with file upload support.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Send File in Individual Chat",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{auth_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "receiver_id",
+              "value": "{{receiver_user_id}}",
+              "type": "text",
+              "description": "The Mongo ID of the user you want to send the file to."
+            },
+            {
+              "key": "message",
+              "value": "Check out this document",
+              "type": "text",
+              "description": "Optional caption message to send along with the file."
+            },
+            {
+              "key": "file",
+              "type": "file",
+              "src": [],
+              "description": "The file binary to upload."
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/chat/message/file",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "chat",
+            "message",
+            "file"
+          ]
+        },
+        "description": "Upload a file and send it as a message to a specific user. This endpoint triggers real-time socket events `new-message` (for the receiver) and `message-sent` (for the sender)."
+      },
+      "response": []
+    },
+    {
+      "name": "Send File in Group Chat",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{auth_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "groupChatRoomId",
+              "value": "{{group_room_id}}",
+              "type": "text",
+              "description": "The Mongo ID of the group chat room to send the file to."
+            },
+            {
+              "key": "message",
+              "value": "Here is the shared document",
+              "type": "text",
+              "description": "Optional caption message to send along with the file."
+            },
+            {
+              "key": "file",
+              "type": "file",
+              "src": [],
+              "description": "The file binary to upload."
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/group/message/file",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "group",
+            "message",
+            "file"
+          ]
+        },
+        "description": "Upload a file and send it as a message to a group chat room. This endpoint validates membership and broadcasts real-time socket events `group-new-message` to other members and `group-message-sent` to the sender."
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://10.10.28.200:8003",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "your-auth-token-here",
+      "type": "string"
+    },
+    {
+      "key": "receiver_user_id",
+      "value": "65c697843818e9ba1332a688",
+      "type": "string"
+    },
+    {
+      "key": "group_room_id",
+      "value": "65c697843818e9ba1332a799",
+      "type": "string"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { CreateParkingSpotDto } from './dtos/create-parking-spot.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateParkingReportDto, UpdateParkingReportDto } from './dtos';
@@ -44,30 +44,87 @@ export class ParkingReportService {
 
   async createParkingReport(userId: string, createParkingReportDto: CreateParkingReportDto) {
     const expiresAt = this.getExpirationTime();
+    const { spotId, latitude, longitude, parking_cost, electric_charging, disabled_facility, disabled_facility_location } = createParkingReportDto;
+
+    const disabledFacilityLocationValue = disabled_facility_location
+      ? DisabledFacilityLocation[disabled_facility_location]
+      : undefined;
+
+    // --- Spot-linked flow ---
+    if (spotId) {
+      const spot = await this.prismaService.parkingSpot.findUnique({ where: { id: spotId } });
+      if (!spot) {
+        throw new NotFoundException(`Parking spot with ID ${spotId} not found`);
+      }
+
+      // Update the spot with the latest data from the report
+      await this.prismaService.parkingSpot.update({
+        where: { id: spotId },
+        data: {
+          parking_cost,
+          electric_charging,
+          disabled_facility,
+          ...(disabledFacilityLocationValue !== undefined && { disabled_facility_location: disabledFacilityLocationValue }),
+          // Only override coordinates if the user explicitly provided them
+          ...(latitude !== undefined && { latitude }),
+          ...(longitude !== undefined && { longitude }),
+        },
+      });
+
+      // Use spot coordinates as the source of truth, falling back to DTO overrides
+      const reportLat = latitude ?? spot.latitude;
+      const reportLng = longitude ?? spot.longitude;
+
+      const report = await this.prismaService.parkingReport.create({
+        data: {
+          user_id: userId,
+          spotId,
+          latitude: reportLat,
+          longitude: reportLng,
+          parking_cost,
+          electric_charging,
+          disabled_facility,
+          disabled_facility_location: disabledFacilityLocationValue,
+          expiresAt,
+        },
+        include: {
+          user: { select: { id: true, name: true, nick_name: true, avatar: true } },
+        },
+      });
+
+      this.logger.log(`Parking report created and spot ${spotId} updated by user ${userId}`);
+      return this.postCreateCreditAndNotify(userId, report);
+    }
+
+    // --- Standalone flow (no spotId) ---
+    if (latitude === undefined || longitude === undefined) {
+      throw new BadRequestException('latitude and longitude are required when spotId is not provided');
+    }
 
     const report = await this.prismaService.parkingReport.create({
       data: {
         user_id: userId,
-        latitude: createParkingReportDto.latitude!,
-        longitude: createParkingReportDto.longitude!,
-        parking_cost: createParkingReportDto.parking_cost,
-        electric_charging: createParkingReportDto.electric_charging,
-        disabled_facility: createParkingReportDto.disabled_facility,
-        disabled_facility_location: DisabledFacilityLocation[createParkingReportDto.disabled_facility_location],
+        latitude,
+        longitude,
+        parking_cost,
+        electric_charging,
+        disabled_facility,
+        disabled_facility_location: disabledFacilityLocationValue,
         expiresAt,
       },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            nick_name: true,
-            avatar: true,
-          },
-        },
+        user: { select: { id: true, name: true, nick_name: true, avatar: true } },
       },
     });
 
+    return this.postCreateCreditAndNotify(userId, report);
+  }
+
+  /**
+   * Shared post-create logic: award credit and dispatch notification.
+   * Extracted to avoid duplication between spot-linked and standalone flows.
+   */
+  private async postCreateCreditAndNotify(userId: string, report: any) {
     // Increment parking report credit for the user
     try {
       const updatedUser = await this.prismaService.user.update({
@@ -324,7 +381,9 @@ export class ParkingReportService {
         parking_cost: createParkingSpotDto.parking_cost,
         electric_charging: createParkingSpotDto.electric_charging,
         disabled_facility: createParkingSpotDto.disabled_facility,
-        disabled_facility_location: DisabledFacilityLocation[createParkingSpotDto.disabled_facility_location],
+        disabled_facility_location: createParkingSpotDto.disabled_facility_location
+          ? DisabledFacilityLocation[createParkingSpotDto.disabled_facility_location]
+          : undefined,
       },
     });
     return spot;

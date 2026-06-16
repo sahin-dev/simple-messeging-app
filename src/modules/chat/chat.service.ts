@@ -1,10 +1,12 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, Inject, Optional } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { SendMessageDto } from "./dtos/send-message.dto";
 import { GetAllMessagesDto } from "./dtos/get-all-messages.dto";
 import { GetUserRoomsDto } from "./dtos/get-user-rooms.dto";
 import { SocketGateway } from "./gateway/chat.gateway";
 import { RatingService } from "../rating/rating.service";
+import { SendFileDto } from "./dtos/send-file.dto";
+import { MessageType } from "generated/prisma/enums";
 
 @Injectable()
 export class ChatService {
@@ -12,6 +14,9 @@ export class ChatService {
     constructor(
         private readonly prismaService: PrismaService,
         private readonly ratingService: RatingService,
+        @Optional()
+        @Inject("SOCKET_ROOM_SERVICE")
+        private readonly socketRoomService?: any,
     ) { }
 
     /**
@@ -81,6 +86,97 @@ export class ChatService {
         });
 
         return createdChat
+    }
+
+    /**
+     * Send a file message in a chat room
+     * @param userId 
+     * @param sendFileDto 
+     * @param file 
+     * @returns 
+     */
+    async sendFileMessage(userId: string, sendFileDto: SendFileDto, file: Express.Multer.File) {
+        if (!file) {
+            throw new BadRequestException("File is required");
+        }
+
+        if (userId === sendFileDto.receiver_id) {
+            throw new BadRequestException("You can not message yourself!");
+        }
+
+        const receiverUser = await this.prismaService.user.findUnique({
+            where: { id: sendFileDto.receiver_id }
+        });
+
+        if (!receiverUser) {
+            throw new BadRequestException("Receiver user not found");
+        }
+
+        const isBlockExist = await this.prismaService.blockList.findFirst({
+            where: {
+                OR: [
+                    { blocked_user_id: userId, user_id: sendFileDto.receiver_id },
+                    { blocked_user_id: sendFileDto.receiver_id, user_id: userId }
+                ]
+            }
+        });
+
+        if (isBlockExist) {
+            throw new BadRequestException("You can not message this account");
+        }
+
+        const room = await this.createChatRoomIfNotExists(userId, sendFileDto.receiver_id);
+
+        const createdChat = await this.prismaService.chat.create({
+            data: {
+                chatRoom_id: room.id,
+                sender_id: userId,
+                receiver_id: sendFileDto.receiver_id,
+                message: sendFileDto.message || file.originalname,
+                type: MessageType.FILE,
+                file_url: `/uploads/chats/${file.filename}`,
+                file_name: file.originalname,
+                file_size: file.size,
+                file_mime_type: file.mimetype,
+            },
+            include: {
+                sender: {
+                    select: {
+                        id: true,
+                        nick_name: true,
+                        avatar: true
+                    }
+                },
+                receiver: {
+                    select: {
+                        id: true,
+                        nick_name: true,
+                        avatar: true
+                    }
+                }
+            },
+        });
+
+        await this.prismaService.chatRoom.update({
+            where: { id: room.id },
+            data: {
+                updatedAt: new Date()
+            }
+        });
+
+        // Emit live event via websocket
+        if (this.socketRoomService && this.socketRoomService.server) {
+            const server = this.socketRoomService.server;
+            const receiverRoom = `user-${sendFileDto.receiver_id}`;
+            const senderRoom = `user-${userId}`;
+
+            // Send to receiver
+            server.to(receiverRoom).emit("new-message", { ...createdChat, is_mine: false });
+            // Send confirmation to sender
+            server.to(senderRoom).emit("message-sent", { ...createdChat, is_mine: true });
+        }
+
+        return createdChat;
     }
 
     /**
@@ -312,6 +408,11 @@ export class ChatService {
                     sender_id: latestChat.sender_id,
                     message: latestChat.message,
                     createdAt: latestChat.createdAt,
+                    type: latestChat.type,
+                    file_url: latestChat.file_url,
+                    file_name: latestChat.file_name,
+                    file_size: latestChat.file_size,
+                    file_mime_type: latestChat.file_mime_type,
                     sender: {
                         id: latestChat.sender.id,
                         nick_name: latestChat.sender.nick_name,

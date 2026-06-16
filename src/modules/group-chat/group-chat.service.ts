@@ -2,12 +2,14 @@ import { Injectable, BadRequestException, NotFoundException, forwardRef, Inject,
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGroupChatRoomDto } from './dtos/create-group-chat-room.dto';
 import { SendGroupMessageDto } from './dtos/send-group-message.dto';
+import { SendGroupFileDto } from './dtos/send-group-file.dto';
 import { UpdateGroupChatRoomDto } from './dtos/update-group-chat-room.dto';
 import { PaginationDto } from './dtos/pagination.dto';
 import { group } from 'console';
 import { User } from 'generated/prisma/browser';
 import { DefaultArgs } from '@prisma/client/runtime/library';
 import { UserDelegate, UserWhereInput } from 'generated/prisma/models';
+import { MessageType } from 'generated/prisma/enums';
 import * as fs from 'fs';
 
 @Injectable()
@@ -19,7 +21,7 @@ export class GroupChatService {
     @Optional()
     @Inject('SOCKET_ROOM_SERVICE')
     private readonly socketRoomService?: any,
-  ) {}
+  ) { }
 
   async createGroupChatRoom(userId: string, createGroupChatRoomDto: CreateGroupChatRoomDto, file?: Express.Multer.File) {
     // Ensure creator is included in members
@@ -94,6 +96,84 @@ export class GroupChatService {
       where: { id: sendGroupMessageDto.groupChatRoomId },
       data: { updatedAt: new Date() },
     });
+
+    return groupChat;
+  }
+
+  async sendGroupFileMessage(userId: string, sendGroupFileDto: SendGroupFileDto, file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
+    // Verify user is a member of the group
+    const membership = await this.prismaService.groupChatRoomMember.findFirst({
+      where: {
+        groupChatRoom_id: sendGroupFileDto.groupChatRoomId,
+        user_id: userId,
+      },
+    });
+
+    if (!membership) {
+      throw new BadRequestException('You are not a member of this group');
+    }
+
+    const groupChat = await this.prismaService.groupChat.create({
+      data: {
+        groupChatRoom_id: sendGroupFileDto.groupChatRoomId,
+        sender_id: userId,
+        message: sendGroupFileDto.message || file.originalname,
+        type: MessageType.FILE,
+        file_url: `/uploads/chats/${file.filename}`,
+        file_name: file.originalname,
+        file_size: file.size,
+        file_mime_type: file.mimetype,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            nick_name: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    // Update group chat room updatedAt
+    await this.prismaService.groupChatRoom.update({
+      where: { id: sendGroupFileDto.groupChatRoomId },
+      data: { updatedAt: new Date() },
+    });
+
+    // Broadcast the message to all group members via WebSocket
+    if (this.socketRoomService && this.socketRoomService.server) {
+      const server = this.socketRoomService.server;
+      const groupChatRoomId = sendGroupFileDto.groupChatRoomId;
+
+      // Find all members in the group to send notification
+      const members = await this.prismaService.groupChatRoomMember.findMany({
+        where: { groupChatRoom_id: groupChatRoomId },
+        select: { user_id: true }
+      });
+
+      members.forEach((member) => {
+        const userRoomId = `user-${member.user_id}`;
+        const isMine = member.user_id === userId;
+
+        if (isMine) {
+          server.to(userRoomId).emit('group-message-sent', {
+            ...groupChat,
+            is_mine: true
+          });
+        } else {
+          server.to(userRoomId).emit('group-new-message', {
+            ...groupChat,
+            groupChatRoomId: groupChatRoomId,
+            is_mine: false
+          });
+        }
+      });
+    }
 
     return groupChat;
   }
@@ -345,7 +425,7 @@ export class GroupChatService {
 
   async removeGroupMember(groupChatRoomId: string, userId: string, memberId: string) {
 
-    if(userId === memberId){
+    if (userId === memberId) {
       throw new BadRequestException("You can remove yourself")
     }
     // Verify requester is admin or removing self
@@ -424,6 +504,8 @@ export class GroupChatService {
     }
 
     if (file && room.image) {
+
+      console.log(file)
       this.deleteGroupImage(room.image);
     }
 
@@ -575,7 +657,7 @@ export class GroupChatService {
     const skip = (paginationDto.page - 1) * paginationDto.limit;
     const take = paginationDto.limit;
 
-    
+
     const [members, total] = await Promise.all([
       this.prismaService.groupChatRoomMember.findMany({
         where: { groupChatRoom_id: groupChatRoomId },
@@ -599,7 +681,7 @@ export class GroupChatService {
     return { members, total };
   }
 
-  async getUsersForAddingToGroup (groupChatRoomId: string, userId: string, paginationDto: PaginationDto)  {
+  async getUsersForAddingToGroup(groupChatRoomId: string, userId: string, paginationDto: PaginationDto) {
     // Verify user is a member
     const membership = await this.prismaService.groupChatRoomMember.findFirst({
       where: {
@@ -645,13 +727,13 @@ export class GroupChatService {
         },
       }),
     ]);
-    
+
     return { users, total };
   }
 
   async searchUsersToAddToGroup(groupChatRoomId: string, userId: string, query: string, paginationDto: PaginationDto) {
 
-    
+
     // Verify user is a member
     const membership = await this.prismaService.groupChatRoomMember.findFirst({
       where: {
@@ -668,19 +750,19 @@ export class GroupChatService {
 
     const skip = (paginationDto.page - 1) * paginationDto.limit;
 
-    const searchUserWhere:UserWhereInput = {
+    const searchUserWhere: UserWhereInput = {
       NOT: {
-            groupChatRooms: {
-              some: {
-                groupChatRoom_id: groupChatRoomId,
-              },
-            },
+        groupChatRooms: {
+          some: {
+            groupChatRoom_id: groupChatRoomId,
           },
-          OR: [
-            { nick_name: { contains: query, mode: 'insensitive' } },
-            { email: { contains: query, mode: 'insensitive' } },
-          ],
-          
+        },
+      },
+      OR: [
+        { nick_name: { contains: query, mode: 'insensitive' } },
+        { email: { contains: query, mode: 'insensitive' } },
+      ],
+
     }
 
     const [users, total] = await Promise.all([
@@ -695,7 +777,7 @@ export class GroupChatService {
         take: paginationDto.limit,
       }),
       this.prismaService.user.count({
-          where: searchUserWhere
+        where: searchUserWhere
       }),
     ]);
 

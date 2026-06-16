@@ -31,9 +31,23 @@ export class SingleMessageDto {
     @Expose()
     message:string
 
+    @Expose()
+    type: string
+
+    @Expose()
+    file_url?: string
+
+    @Expose()
+    file_name?: string
+
+    @Expose()
+    file_size?: number
+
+    @Expose()
+    file_mime_type?: string
+
     @Expose({
         name:"createdAt"
     })
     timestamps:Date
-
 }
