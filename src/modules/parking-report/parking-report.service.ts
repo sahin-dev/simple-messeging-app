@@ -4,15 +4,18 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateParkingReportDto, UpdateParkingReportDto } from './dtos';
 import { DisabledFacilityLocation } from 'generated/prisma/enums';
 import { NotificationDispatcherService } from '../notification/services/notification-dispatcher.service';
+import { GeolocationService } from '../../common/services/geolocation.service';
 
 @Injectable()
 export class ParkingReportService {
   private readonly EXPIRATION_TIME_MINUTES = 10;
+  private readonly DEFAULT_NEARBY_RADIUS_METERS = 200;
   private readonly logger = new Logger(ParkingReportService.name);
 
   constructor(
     private readonly prismaService: PrismaService,
     private readonly notificationDispatcherService: NotificationDispatcherService,
+    private readonly geolocationService: GeolocationService,
   ) { }
 
   /**
@@ -55,6 +58,34 @@ export class ParkingReportService {
       const spot = await this.prismaService.parkingSpot.findUnique({ where: { id: spotId } });
       if (!spot) {
         throw new NotFoundException(`Parking spot with ID ${spotId} not found`);
+      }
+
+      // 1. Time constraint: user within 10 minute window can not submit report for same spot
+      const tenMinutesAgo = new Date(Date.now() - this.EXPIRATION_TIME_MINUTES * 60 * 1000);
+      const existingReport = await this.prismaService.parkingReport.findFirst({
+        where: {
+          user_id: userId,
+          spotId,
+          createdAt: { gte: tenMinutesAgo },
+        },
+      });
+      if (existingReport) {
+        throw new BadRequestException('You cannot submit a report for the same spot within 10 minutes');
+      }
+
+      // 2. Distance constraint: user distance above 10m from parking spot can not generate report
+      const userLocation = await this.geolocationService.getUserLocation(userId);
+      if (!userLocation) {
+        throw new BadRequestException('User location not found. Please update your location first.');
+      }
+      const distance = this.geolocationService.calculateDistance(
+        spot.latitude,
+        spot.longitude,
+        userLocation.latitude,
+        userLocation.longitude,
+      );
+      if (distance > 10) {
+        throw new BadRequestException('You must be within 10 meters of the parking spot to generate a report');
       }
 
       // Update the spot with the latest data from the report
@@ -121,43 +152,12 @@ export class ParkingReportService {
   }
 
   /**
-   * Shared post-create logic: award credit and dispatch notification.
-   * Extracted to avoid duplication between spot-linked and standalone flows.
+   * Shared post-create logic: dispatch availability notification to nearby users.
+   * Credits are earned when a user notifies others they are leaving a spot.
    */
   private async postCreateCreditAndNotify(userId: string, report: any) {
-    // Increment parking report credit for the user
-    try {
-      const updatedUser = await this.prismaService.user.update({
-        where: { id: userId },
-        data: {
-          parking_reports_submitted: { increment: 1 },
-          parking_notifications_available: { increment: 1 },
-        },
-      });
-
-      // Track credit transaction
-      await this.prismaService.parkingNotificationCredit.create({
-        data: {
-          user_id: userId,
-          parking_report_id: report.id,
-          transaction_type: 'EARNED',
-          amount: 1,
-          balance: updatedUser.parking_notifications_available,
-        },
-      });
-
-      this.logger.log(
-        `Parking report credit earned for user ${userId}. New balance: ${updatedUser.parking_notifications_available}`,
-      );
-    } catch (err: any) {
-      this.logger.error(
-        `Failed to update parking notification credit for user ${userId}: ${err.message}`,
-      );
-    }
-
     const formattedReport = this.formatReportResponse(report);
 
-    // Trigger parking availability notification to nearby users
     try {
       this.notificationDispatcherService.dispatchParkingNotification(report).catch((err) => {
         this.logger.error(`Failed to dispatch parking notification: ${err.message}`);
@@ -406,6 +406,217 @@ export class ParkingReportService {
       throw new NotFoundException(`Parking spot with ID ${id} not found`);
     }
     return spot;
+  }
+
+  /**
+   * Get parking spots within a radius of the user's location (default 200m).
+   * Uses bounding-box pre-filter then Haversine for accurate distance.
+   */
+  async getNearbyParkingSpots(
+    latitude: number,
+    longitude: number,
+    radiusInMeters: number = this.DEFAULT_NEARBY_RADIUS_METERS,
+    page: number = 1,
+    limit: number = 50,
+  ) {
+    if (!this.geolocationService.validateCoordinates(latitude, longitude)) {
+      throw new BadRequestException('Invalid latitude or longitude');
+    }
+
+    const radiusInKm = radiusInMeters / 1000;
+    const latDelta = radiusInKm / 111;
+    const lonDelta = radiusInKm / (111 * Math.cos((latitude * Math.PI) / 180));
+    const tenMinutesAgo = new Date(Date.now() - this.EXPIRATION_TIME_MINUTES * 60 * 1000);
+
+    const candidates = await this.prismaService.parkingSpot.findMany({
+      where: {
+        is_active: true,
+        latitude: { gte: latitude - latDelta, lte: latitude + latDelta },
+        longitude: { gte: longitude - lonDelta, lte: longitude + lonDelta },
+      },
+      include: {
+        reports: {
+          where: {
+            is_active: true,
+            createdAt: { gte: tenMinutesAgo },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: {
+            user: { select: { id: true, name: true, nick_name: true, avatar: true } },
+          },
+        },
+      },
+    });
+
+    const spotsWithDistance = candidates
+      .map((spot) => ({
+        ...spot,
+        distanceMeters: Math.round(
+          this.geolocationService.calculateDistance(
+            latitude,
+            longitude,
+            spot.latitude,
+            spot.longitude,
+          ),
+        ),
+        activeReport: spot.reports[0] ?? null,
+      }))
+      .filter((spot) => spot.distanceMeters <= radiusInMeters)
+      .sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+    const skip = (page - 1) * limit;
+    const paginatedSpots = spotsWithDistance.slice(skip, skip + limit);
+
+    return {
+      spots: paginatedSpots.map(({ reports, ...spot }) => spot),
+      total: spotsWithDistance.length,
+      page,
+      limit,
+      radiusInMeters,
+    };
+  }
+
+  /**
+   * User notifies nearby users they are leaving a parking spot.
+   * Awards +1 credit to the leaving user and notifies users within 200m who have credits.
+   */
+  async leaveParkingSpot(userId: string, spotId: string) {
+    const spot = await this.prismaService.parkingSpot.findUnique({
+      where: { id: spotId },
+    });
+
+    if (!spot) {
+      throw new NotFoundException(`Parking spot with ID ${spotId} not found`);
+    }
+
+    if (!spot.is_active) {
+      throw new BadRequestException('This parking spot is no longer active');
+    }
+
+    // Check if user already reported leave for this spot within 10 minutes
+    const tenMinutesAgo = new Date(Date.now() - this.EXPIRATION_TIME_MINUTES * 60 * 1000);
+    const recentLeaveReport = await this.prismaService.parkingReport.findFirst({
+      where: {
+        user_id: userId,
+        spotId,
+        createdAt: { gte: tenMinutesAgo },
+      },
+    });
+
+    if (recentLeaveReport) {
+      return recentLeaveReport;
+    }
+
+    // Create a leave report for this user and spot
+    const expiresAt = this.getExpirationTime();
+    const leaveReport = await this.prismaService.parkingReport.create({
+      data: {
+        user_id: userId,
+        spotId: spot.id,
+        latitude: spot.latitude,
+        longitude: spot.longitude,
+        parking_cost: spot.parking_cost,
+        electric_charging: spot.electric_charging,
+        disabled_facility: spot.disabled_facility,
+        disabled_facility_location: spot.disabled_facility_location,
+        is_active: true,
+        expiresAt,
+      },
+      include: {
+        user: { select: { id: true, name: true, nick_name: true, avatar: true } },
+      },
+    });
+
+    // Make spot available
+    const updatedSpot = await this.prismaService.parkingSpot.update({
+      where: { id: spotId },
+      data: { available: true },
+    });
+
+    const leavingUser = await this.prismaService.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, nick_name: true },
+    });
+
+    const newBalance = await this.awardLeaveCredit(userId, leaveReport.id);
+
+    this.notificationDispatcherService
+      .dispatchParkingLeaveNotification(updatedSpot, leavingUser, leaveReport.id)
+      .catch((err) => {
+        this.logger.error(`Failed to dispatch parking leave notification: ${err.message}`);
+      });
+
+    return {
+      spotId,
+      latitude: updatedSpot.latitude,
+      longitude: updatedSpot.longitude,
+      available: updatedSpot.available,
+      leaveReportId: leaveReport.id,
+      creditAwarded: true,
+      parking_notifications_available: newBalance,
+    };
+  }
+
+  /**
+   * Reserve a parking spot — marks it as unavailable for others.
+   */
+  async reserveParkingSpot(userId: string, spotId: string) {
+    const spot = await this.prismaService.parkingSpot.findUnique({
+      where: { id: spotId },
+    });
+
+    if (!spot) {
+      throw new NotFoundException(`Parking spot with ID ${spotId} not found`);
+    }
+
+    if (!spot.is_active) {
+      throw new BadRequestException('This parking spot is no longer active');
+    }
+
+    // if (!spot.available) {
+    //   throw new BadRequestException('This parking spot is already reserved');
+    // }
+
+    const updatedSpot = await this.prismaService.parkingSpot.update({
+      where: { id: spotId },
+      data: { available: false },
+    });
+
+    this.logger.log(`Parking spot ${spotId} reserved by user ${userId}`);
+
+    return {
+      spotId: updatedSpot.id,
+      latitude: updatedSpot.latitude,
+      longitude: updatedSpot.longitude,
+      available: updatedSpot.available,
+    };
+  }
+
+  private async awardLeaveCredit(userId: string, referenceId: string): Promise<number> {
+    const updatedUser = await this.prismaService.user.update({
+      where: { id: userId },
+      data: {
+        parking_reports_submitted: { increment: 1 },
+        parking_notifications_available: { increment: 1 },
+      },
+    });
+
+    await this.prismaService.parkingNotificationCredit.create({
+      data: {
+        user_id: userId,
+        parking_report_id: referenceId,
+        transaction_type: 'EARNED',
+        amount: 1,
+        balance: updatedUser.parking_notifications_available,
+      },
+    });
+
+    this.logger.log(
+      `Leave notification credit earned for user ${userId}. New balance: ${updatedUser.parking_notifications_available}`,
+    );
+
+    return updatedUser.parking_notifications_available;
   }
 
   async updateParkingReport(id: string, userId: string, updateParkingReportDto: UpdateParkingReportDto) {

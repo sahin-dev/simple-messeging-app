@@ -22,6 +22,7 @@ import { TogggleBlockUserDto } from "./dtos/block-user.dto";
 import { DeleteAccountDto } from "./dtos/delete-account.dto";
 import { ScanQrCodeDto } from "./dtos/scan-qr-code.dto";
 import { UpdateUserLocationDto } from "./dtos/update-user-location.dto";
+import { VerifyLicenseDto } from "./dtos/verify-license.dto";
 
 
 @Controller({
@@ -233,5 +234,22 @@ export class UserController {
             updateUserLocationDto.accuracy
         );
         return updatedLocation;
+    }
+
+    /**
+     * Verify user license plate number
+     */
+    @Post("verify-license")
+    @ResponseMessage("License verified successfully")
+    async verifyUserLicense(@Req() request: Request, @Body() verifyLicenseDto: VerifyLicenseDto) {
+        const tokenPayload = request['payload'] as TokenPayload;
+        const updatedUser = await this.userService.verifyUserLicense(
+            tokenPayload.id,
+            verifyLicenseDto.plate_no
+        );
+        return plainToInstance(UserResponseDto, updatedUser, {
+            excludeExtraneousValues: true,
+            groups: [UserRole.ADMIN, UserRole.USER],
+        });
     }
 }

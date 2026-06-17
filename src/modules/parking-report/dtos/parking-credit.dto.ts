@@ -1,23 +1,22 @@
 /**
  * Parking Notification Credit System DTO
- * 
+ *
  * Credit System Rules:
  * - Every user gets 1 FREE parking notification when they first register
- * - Each parking report submission grants 1 notification credit
+ * - Each leave notification (notifying others you are leaving a spot) grants 1 credit
  * - Each parking notification received consumes 1 credit
- * - User can receive up to (number of parking reports submitted) notifications from other users
+ * - Users without credits will not receive leave/availability notifications
  */
 
 export class ParkingCreditResponseDto {
   /**
    * Total number of parking notifications currently available
-   * Starts at 1 (free notification) and increases by 1 for each parking report submitted
+   * Starts at 1 (free notification) and increases by 1 for each leave notification sent
    */
   parking_notifications_available: number;
 
   /**
-   * Total number of parking reports submitted by the user
-   * Each report gives 1 notification credit
+   * Total number of leave notifications sent by the user (each grants 1 credit)
    */
   parking_reports_submitted: number;
 

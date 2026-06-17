@@ -41,6 +41,9 @@ export class UserResponseDto {
     @Expose({ groups: [UserRole.USER] })
     nick_name: string
 
+    @Expose()
+    license_no_verified: boolean
+
     @Expose({
         groups:[UserRole.ADMIN]
     })

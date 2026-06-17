@@ -23,8 +23,7 @@ export class NotificationDispatcherService {
    * This is the main use case for the notification system
    * Credit System:
    * - First notification is FREE for every user
-   * - After first free notification, user needs to submit a parking report to get a credit
-   * - Each parking report submission gives 1 credit
+   * - User earns 1 credit when notifying others they are leaving a parking spot
    * - Each notification received consumes 1 credit
    */
   async dispatchParkingNotification(parkingReport: any): Promise<void> {
@@ -124,6 +123,88 @@ export class NotificationDispatcherService {
         `Error dispatching parking notifications for report ${parkingReport.id}:`,
         err,
       );
+    }
+  }
+
+  /**
+   * Dispatch parking leave notification to users within 200m radius.
+   * Receivers must have notification credits; each notification consumes 1 credit.
+   */
+  async dispatchParkingLeaveNotification(
+    spot: any,
+    leavingUser: { id: string; name: string | null; nick_name: string } | null,
+    referenceId: string,
+  ): Promise<void> {
+    try {
+      this.logger.log(`Dispatching parking leave notification for spot ${spot.id}`);
+
+      const usersInRadius = await this.geolocationService.findUsersWithinRadius(
+        spot.latitude,
+        spot.longitude,
+        200,
+        leavingUser?.id,
+      );
+
+      this.logger.log(
+        `Found ${usersInRadius.length} users within 200m for leaving spot ${spot.id}`,
+      );
+
+      const leaverName = leavingUser?.nick_name || leavingUser?.name || 'A user';
+
+      for (const user of usersInRadius) {
+        try {
+          const distance = await this.getDistanceForUser(user.id, spot);
+
+          const shouldNotify = await this.notificationPreferenceService.shouldNotifyForParking(
+            user.id,
+            distance,
+          );
+
+          if (!shouldNotify || !user.fcm_token) {
+            continue;
+          }
+
+          const hasCredits = await this.checkParkingNotificationCredits(user.id);
+          if (!hasCredits) {
+            this.logger.debug(`User ${user.id} has no credits for leave notification`);
+            continue;
+          }
+
+          const creditConsumed = await this.consumeParkingNotificationCredit(user.id, referenceId);
+          if (!creditConsumed) {
+            continue;
+          }
+
+          const title = 'Parking Spot Opening Up!';
+          const message = `${leaverName} is leaving a parking spot nearby`;
+          const payload = {
+            spotId: spot.id,
+            latitude: spot.latitude,
+            longitude: spot.longitude,
+            parkingCost: spot.parking_cost,
+            hasCharging: spot.electric_charging,
+            hasDisabledFacility: spot.disabled_facility,
+            leaverName,
+            type: 'PARKING_LEAVING',
+          };
+
+          await this.notificationEventService.createEvent({
+            userId: user.id,
+            eventType: NotificationEventTypeEnum.PARKING_NEARBY,
+            title,
+            message,
+            payload,
+          });
+
+          await this.sendPushNotification(user.fcm_token, title, message);
+
+          this.logger.log(`Sent parking leave notification to user ${user.id}`);
+        } catch (err) {
+          this.logger.error(`Failed to send leave notification to user ${user.id}:`, err);
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Error dispatching parking leave notifications for spot ${spot.id}:`, err);
     }
   }
 
@@ -540,20 +621,23 @@ export class NotificationDispatcherService {
   }
 
   /**
-   * Get distance from user to parking spot
+   * Get distance from user to a parking location (report or spot)
    */
-  private async getDistanceForUser(userId: string, parkingReport: any): Promise<number> {
+  private async getDistanceForUser(
+    userId: string,
+    location: { latitude: number; longitude: number },
+  ): Promise<number> {
     const userLocation = await this.geolocationService.getUserLocation(userId);
 
     if (!userLocation) {
-      return Infinity; // If no location, consider as too far
+      return Infinity;
     }
 
     return this.geolocationService.calculateDistance(
       userLocation.latitude,
       userLocation.longitude,
-      parkingReport.latitude,
-      parkingReport.longitude,
+      location.latitude,
+      location.longitude,
     );
   }
 
@@ -561,7 +645,7 @@ export class NotificationDispatcherService {
    * Check if user has available parking notification credits
    * Credit System:
    * - User gets 1 free notification initially
-   * - Each parking report submission adds 1 credit
+   * - Each leave notification sent adds 1 credit
    * - parking_notifications_available tracks current credits
    */
   private async checkParkingNotificationCredits(userId: string): Promise<boolean> {

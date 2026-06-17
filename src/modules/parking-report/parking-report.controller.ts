@@ -11,7 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ParkingReportService } from './parking-report.service';
-import { CreateParkingReportDto, UpdateParkingReportDto } from './dtos';
+import { CreateParkingReportDto, UpdateParkingReportDto, LeaveParkingSpotDto, ReserveParkingSpotDto } from './dtos';
 import { ResponseMessage } from 'src/common/decorators/apiResponseMessage.decorator';
 import { GetUser } from 'src/common/decorators';
 import { CreateParkingSpotDto } from './dtos/create-parking-spot.dto';
@@ -49,6 +49,45 @@ export class ParkingReportController {
     @Query('limit') limit: number = 10,
   ) {
     return this.parkingReportService.getAllParkingSpots(page, limit);
+  }
+
+  @Get('spot/nearby')
+  @HttpCode(200)
+  @ResponseMessage('Nearby parking spots fetched successfully')
+  async getNearbyParkingSpots(
+    @Query('latitude') latitude: number,
+    @Query('longitude') longitude: number,
+    @Query('radiusInMeters') radiusInMeters: number = 200,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 50,
+  ) {
+    return this.parkingReportService.getNearbyParkingSpots(
+      latitude,
+      longitude,
+      radiusInMeters,
+      page,
+      limit,
+    );
+  }
+
+  @Post('spot/leave')
+  @HttpCode(200)
+  @ResponseMessage('Parking leave notification sent successfully')
+  async leaveParkingSpot(
+    @GetUser('id') userId: string,
+    @Body() leaveParkingSpotDto: LeaveParkingSpotDto,
+  ) {
+    return this.parkingReportService.leaveParkingSpot(userId, leaveParkingSpotDto.spotId);
+  }
+
+  @Post('spot/reserve')
+  @HttpCode(200)
+  @ResponseMessage('Parking spot reserved successfully')
+  async reserveParkingSpot(
+    @GetUser('id') userId: string,
+    @Body() reserveParkingSpotDto: ReserveParkingSpotDto,
+  ) {
+    return this.parkingReportService.reserveParkingSpot(userId, reserveParkingSpotDto.spotId);
   }
 
   @Get('spot/:id')

@@ -28,6 +28,7 @@ model User {
   is_blocked               Boolean     @default(false)
   is_deleted               Boolean     @default(false)
   email_verified           Boolean     @default(false)
+  license_no_verified      Boolean     @default(false)
   account_type             AccountType @default(FREE)
   qr_code                  String?
 
@@ -300,6 +301,7 @@ model ParkingSpot {
   disabled_facility          Boolean
   disabled_facility_location DisabledFacilityLocation?
   is_active                  Boolean                  @default(true)
+  available                  Boolean                  @default(true)
   createdAt                  DateTime                 @default(now())
   reports                    ParkingReport[]
 }

@@ -865,5 +865,35 @@ export class UserService {
         }
     }
 
+    /**
+     * Verify user license plate number
+     * @param userId
+     * @param plateNo
+     * @returns
+     */
+    async verifyUserLicense(userId: string, plateNo: string) {
+        const user = await this.prismaService.user.findUnique({
+            where: { id: userId },
+        });
 
+        if (!user) {
+            throw new NotFoundException("User not found");
+        }
+
+        if (!user.licence_id) {
+            throw new BadRequestException("No license ID is registered for this user");
+        }
+        console.log(plateNo, user.licence_id)
+
+        if (user.licence_id.trim().toLowerCase() !== plateNo.trim().toLowerCase()) {
+            throw new BadRequestException("License plate number does not match your registered license ID");
+        }
+
+        const updatedUser = await this.prismaService.user.update({
+            where: { id: userId },
+            data: { license_no_verified: true },
+        });
+
+        return updatedUser;
+    }
 }
