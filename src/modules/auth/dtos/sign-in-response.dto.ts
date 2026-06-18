@@ -29,6 +29,9 @@ export class SignInResponseDto {
 
     @Expose()
     token: string
+    
+    @Expose()
+    license_no_verified:boolean
 
 
 }

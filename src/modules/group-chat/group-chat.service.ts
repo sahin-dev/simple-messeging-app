@@ -544,7 +544,7 @@ export class GroupChatService {
           this.logger.log(`Old group image deleted successfully: ${normalizedPath}`);
         }
       }
-    } catch (error) {
+    } catch (error:any) {
       this.logger.error(`Failed to delete old group image: ${error.message}`);
     }
   }
