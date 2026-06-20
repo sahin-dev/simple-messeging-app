@@ -4,6 +4,8 @@ export enum DocumentTypeEnum {
   LICENSE = 'LICENSE',
   INSURANCE = 'INSURANCE',
   TAX = 'TAX',
+  VEHICLE_OWNERSHIP = 'VEHICLE_OWNERSHIP',
+  CAR_INSPECTION = 'CAR_INSPECTION',
 }
 
 export class UploadUserDocumentDto {
@@ -82,6 +84,7 @@ export class UserDocumentResponseDto {
   document_type: string;
   document_url: string;
   expiry_date: string; // ISO date string
+  is_verified: boolean;
   isExpired: boolean;
   daysUntilExpiry: number;
 }

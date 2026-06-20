@@ -135,6 +135,51 @@ describe('ParkingReportService - Simplified Constraints', () => {
         new BadRequestException('You must be within 10 meters of the parking spot to generate a report'),
       );
     });
+
+    it('should force parking_cost to FREE when disabled_facility is true', async () => {
+      const mockSpot = {
+        id: spotId,
+        latitude: 10.0,
+        longitude: 20.0,
+        is_active: true,
+        parking_cost: 'PAID',
+        electric_charging: false,
+        disabled_facility: false,
+        disabled_facility_location: 'NONE',
+      };
+
+      prismaService.parkingSpot.findUnique.mockResolvedValue(mockSpot);
+      prismaService.parkingReport.findFirst.mockResolvedValue(null);
+      geolocationService.getUserLocation.mockResolvedValue({ latitude: 10.00001, longitude: 20.0 });
+      geolocationService.calculateDistance.mockReturnValue(5.0);
+
+      const dtoWithDisabled = {
+        ...dto,
+        parking_cost: 'PAID' as any,
+        disabled_facility: true,
+      };
+
+      prismaService.parkingSpot.update.mockResolvedValue(mockSpot);
+      prismaService.parkingReport.create.mockImplementation((args: any) => {
+        return {
+          id: 'report_disabled',
+          createdAt: new Date(),
+          ...args.data,
+        };
+      });
+
+      const result = await service.createParkingReport(userId, dtoWithDisabled);
+
+      expect(result.parking_cost).toBe('FREE');
+      expect(prismaService.parkingSpot.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: spotId },
+          data: expect.objectContaining({
+            parking_cost: 'FREE',
+          }),
+        }),
+      );
+    });
   });
 
   describe('reserveParkingSpot (reverted to original)', () => {

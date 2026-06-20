@@ -1,5 +1,6 @@
 import { Transform } from "class-transformer"
-import { IsBoolean, IsEmail, isNotEmpty, IsNotEmpty, IsString, MinLength } from "class-validator"
+import { IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength } from "class-validator"
+import { VehicleType } from "generated/prisma/enums";
 
 export class CreateUserDto {
 
@@ -25,4 +26,16 @@ export class CreateUserDto {
     @IsEmail()
     @IsNotEmpty()
     email:string
+
+    @IsEnum(VehicleType)
+    @IsOptional()
+    vehicle_type?: VehicleType
+
+    @IsString()
+    @IsOptional()
+    vehicle_model?: string
+
+    @IsString()
+    @IsOptional()
+    vehicle_color?: string
 }

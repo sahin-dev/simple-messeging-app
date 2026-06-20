@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { UserService } from "./user.service";
 import { plainToInstance } from "class-transformer";
 import { UserResponseDto } from "./dtos/user-response.dto";
@@ -200,6 +200,122 @@ export class UserController {
         const payload = request['payload'] as TokenPayload;
         const qrcode = await this.userService.generateQrCodeForUser(payload.id)
         return { qr_code: qrcode }
+    }
+
+    @Get("qr-card")
+    async getQrCard(@Req() request: Request, @Res() res: any) {
+        const payload = request['payload'] as TokenPayload;
+        const user = await this.userService.findUserById(payload.id);
+        if (!user) {
+            res.status(444).send("User not found");
+            return;
+        }
+        const qrcode = await this.userService.generateQrCodeForUser(payload.id);
+
+        const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>PLATEChatter QR Card - ${user.nick_name}</title>
+            <style>
+                body {
+                    font-family: 'Outfit', 'Inter', sans-serif;
+                    background-color: #f3f4f6;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                }
+                .card {
+                    background: white;
+                    border-radius: 20px;
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+                    padding: 40px;
+                    text-align: center;
+                    width: 320px;
+                    border: 1px solid #e5e7eb;
+                    position: relative;
+                }
+                .logo-container {
+                    margin-bottom: 25px;
+                }
+                .logo {
+                    font-size: 24px;
+                    font-weight: 800;
+                    color: #4F46E5;
+                    letter-spacing: -0.05em;
+                }
+                .logo span {
+                    color: #111827;
+                }
+                .qr-image {
+                    width: 200px;
+                    height: 200px;
+                    margin: 0 auto 25px auto;
+                    display: block;
+                    border: 1px solid #f3f4f6;
+                    border-radius: 12px;
+                    padding: 10px;
+                    background: #fff;
+                }
+                .username {
+                    font-size: 20px;
+                    font-weight: 700;
+                    color: #111827;
+                    margin: 0 0 5px 0;
+                }
+                .license-plate {
+                    font-size: 14px;
+                    color: #6b7280;
+                    font-weight: 500;
+                    letter-spacing: 0.05em;
+                    text-transform: uppercase;
+                }
+                .print-btn {
+                    margin-top: 30px;
+                    background-color: #4F46E5;
+                    color: white;
+                    border: none;
+                    padding: 12px 24px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: background-color 0.2s;
+                }
+                .print-btn:hover {
+                    background-color: #4338CA;
+                }
+                @media print {
+                    body {
+                        background-color: white;
+                    }
+                    .card {
+                        box-shadow: none;
+                        border: none;
+                    }
+                    .print-btn {
+                        display: none;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <div class="logo-container">
+                    <div class="logo">PLATE<span>Chatter</span></div>
+                </div>
+                <img class="qr-image" src="${qrcode}" alt="QR Code" />
+                <div class="username">@${user.nick_name}</div>
+                <div class="license-plate">Plate: ${user.licence_id || 'N/A'}</div>
+                <button class="print-btn" onclick="window.print()">Print Card</button>
+            </div>
+        </body>
+        </html>
+        `;
+        res.setHeader('Content-Type', 'text/html');
+        res.send(htmlContent);
     }
 
     @Post("scan-qr-code")

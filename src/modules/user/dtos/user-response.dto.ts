@@ -93,6 +93,15 @@ export class UserResponseDto {
     })
     total_cancelled_sessions: number
 
+    @Expose()
+    vehicle_type: string
 
+    @Expose()
+    vehicle_model: string
 
+    @Expose()
+    vehicle_color: string
+
+    @Expose()
+    is_vehicle_verified: boolean
 }

@@ -289,7 +289,10 @@ export class UserService {
         const updatedData: Partial<User> = {
             nick_name: updateUserDto.nick_name ?? user.nick_name,
             name: updateUserDto.name ?? user.name,
-            avatar: (file && file.path) ?? user.avatar
+            avatar: (file && file.path) ?? user.avatar,
+            vehicle_type: updateUserDto.vehicle_type !== undefined ? updateUserDto.vehicle_type : user.vehicle_type,
+            vehicle_model: updateUserDto.vehicle_model !== undefined ? updateUserDto.vehicle_model : user.vehicle_model,
+            vehicle_color: updateUserDto.vehicle_color !== undefined ? updateUserDto.vehicle_color : user.vehicle_color,
         };
 
         const updatedUser = await this.prismaService.user.update({

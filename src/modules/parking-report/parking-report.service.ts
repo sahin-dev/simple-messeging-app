@@ -3,6 +3,7 @@ import { CreateParkingSpotDto } from './dtos/create-parking-spot.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateParkingReportDto, UpdateParkingReportDto } from './dtos';
 import { DisabledFacilityLocation } from 'generated/prisma/enums';
+import { ParkingCost } from 'src/common/enums';
 import { NotificationDispatcherService } from '../notification/services/notification-dispatcher.service';
 import { GeolocationService } from '../../common/services/geolocation.service';
 
@@ -49,6 +50,11 @@ export class ParkingReportService {
     const expiresAt = this.getExpirationTime();
     const { spotId, latitude, longitude, parking_cost, electric_charging, disabled_facility, disabled_facility_location } = createParkingReportDto;
 
+    let finalParkingCost = parking_cost;
+    if (disabled_facility) {
+      finalParkingCost = ParkingCost.FREE;
+    }
+
     const disabledFacilityLocationValue = disabled_facility_location
       ? DisabledFacilityLocation[disabled_facility_location]
       : undefined;
@@ -92,7 +98,7 @@ export class ParkingReportService {
       await this.prismaService.parkingSpot.update({
         where: { id: spotId },
         data: {
-          parking_cost,
+          parking_cost: finalParkingCost,
           electric_charging,
           disabled_facility,
           ...(disabledFacilityLocationValue !== undefined && { disabled_facility_location: disabledFacilityLocationValue }),
@@ -112,7 +118,7 @@ export class ParkingReportService {
           spotId,
           latitude: reportLat,
           longitude: reportLng,
-          parking_cost,
+          parking_cost: finalParkingCost,
           electric_charging,
           disabled_facility,
           disabled_facility_location: disabledFacilityLocationValue,
@@ -137,7 +143,7 @@ export class ParkingReportService {
         user_id: userId,
         latitude,
         longitude,
-        parking_cost,
+        parking_cost: finalParkingCost,
         electric_charging,
         disabled_facility,
         disabled_facility_location: disabledFacilityLocationValue,
@@ -374,11 +380,16 @@ export class ParkingReportService {
 
   // ---------- Parking Spot Service Methods ----------
   async createParkingSpot(userId: string, createParkingSpotDto: CreateParkingSpotDto) {
+    let finalParkingCost = createParkingSpotDto.parking_cost;
+    if (createParkingSpotDto.disabled_facility) {
+      finalParkingCost = ParkingCost.FREE;
+    }
+
     const spot = await this.prismaService.parkingSpot.create({
       data: {
         latitude: createParkingSpotDto.latitude,
         longitude: createParkingSpotDto.longitude,
-        parking_cost: createParkingSpotDto.parking_cost,
+        parking_cost: finalParkingCost as any,
         electric_charging: createParkingSpotDto.electric_charging,
         disabled_facility: createParkingSpotDto.disabled_facility,
         disabled_facility_location: createParkingSpotDto.disabled_facility_location
@@ -636,12 +647,24 @@ export class ParkingReportService {
       throw new Error('Unauthorized: You can only update your own parking reports');
     }
 
+    const disabledFacility = updateParkingReportDto.disabled_facility !== undefined
+      ? updateParkingReportDto.disabled_facility
+      : report.disabled_facility;
+
+    let finalParkingCost = updateParkingReportDto.parking_cost !== undefined
+      ? updateParkingReportDto.parking_cost
+      : report.parking_cost;
+
+    if (disabledFacility) {
+      finalParkingCost = ParkingCost.FREE;
+    }
+
     const updatedReport = await this.prismaService.parkingReport.update({
       where: { id },
       data: {
         latitude: updateParkingReportDto.latitude,
         longitude: updateParkingReportDto.longitude,
-        parking_cost: updateParkingReportDto.parking_cost,
+        parking_cost: finalParkingCost as any,
         electric_charging: updateParkingReportDto.electric_charging,
         disabled_facility: updateParkingReportDto.disabled_facility,
         disabled_facility_location: updateParkingReportDto.disabled_facility_location as DisabledFacilityLocation,
