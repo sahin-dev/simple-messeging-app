@@ -64,4 +64,14 @@ export class ChatController {
         return this.chatService.getRoomMessages(payload.id, getAllMessageDto);
     }
 
+    @Post("rooms/by-plate")
+    @HttpCode(200)
+    @ResponseMessage("Conversation started successfully")
+    async startConversationByPlate(
+        @Req() request: Request,
+        @Body("plate_no") plate_no: string
+    ) {
+        const payload = request["payload"] as TokenPayload;
+        return this.chatService.getOrCreateRoomByPlate(payload.id, plate_no);
+    }
 }

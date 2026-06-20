@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
+import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
+import { VehicleType } from "generated/prisma/enums";
 
 export class UpdateUserDto {
     @IsString()
@@ -12,4 +13,16 @@ export class UpdateUserDto {
     @IsOptional()
     @IsNotEmpty()
     name?: string;
+
+    @IsEnum(VehicleType)
+    @IsOptional()
+    vehicle_type?: VehicleType;
+
+    @IsString()
+    @IsOptional()
+    vehicle_model?: string;
+
+    @IsString()
+    @IsOptional()
+    vehicle_color?: string;
 }

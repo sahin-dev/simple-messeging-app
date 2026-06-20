@@ -32,6 +32,11 @@ model User {
   account_type             AccountType @default(FREE)
   qr_code                  String?
 
+  vehicle_type        VehicleType?
+  vehicle_model       String?
+  vehicle_color       String?
+  is_vehicle_verified Boolean      @default(false)
+
   otp                    String?
   otp_expires            DateTime?
   otp_verification_token String?
@@ -468,6 +473,7 @@ model UserDocument {
   expiry_date   DateTime
   document_type DocumentType
   document_url  String
+  is_verified   Boolean      @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -479,4 +485,13 @@ enum DocumentType {
   LICENSE
   INSURANCE
   TAX
+  VEHICLE_OWNERSHIP
+  CAR_INSPECTION
+}
+
+enum VehicleType {
+  CAR
+  MOTORCYCLE
+  VAN
+  OTHER
 }

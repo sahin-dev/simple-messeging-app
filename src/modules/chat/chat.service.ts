@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Inject, Optional } from "@nestjs/common";
+import { BadRequestException, Injectable, Inject, Optional, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { SendMessageDto } from "./dtos/send-message.dto";
 import { GetAllMessagesDto } from "./dtos/get-all-messages.dto";
@@ -528,5 +528,57 @@ export class ChatService {
             return true
 
         return false
+    }
+
+    /**
+     * Get or create a chat room with a user by their vehicle license plate number
+     */
+    async getOrCreateRoomByPlate(currentUserId: string, plateNo: string) {
+        const cleanedPlate = plateNo.trim();
+
+        if (!cleanedPlate) {
+            throw new BadRequestException("License plate number cannot be empty");
+        }
+
+        const owner = await this.prismaService.user.findFirst({
+            where: {
+                licence_id: {
+                    equals: cleanedPlate,
+                    mode: 'insensitive'
+                },
+                is_deleted: false
+            },
+            select: {
+                id: true,
+                nick_name: true,
+                avatar: true,
+                is_blocked: true,
+                is_vehicle_verified: true
+            }
+        });
+
+        if (!owner) {
+            throw new NotFoundException("No registered vehicle owner found for this license plate");
+        }
+
+        if (owner.is_blocked) {
+            throw new BadRequestException("This user account has been blocked");
+        }
+
+        if (currentUserId === owner.id) {
+            throw new BadRequestException("You cannot start a chat with yourself");
+        }
+
+        const room = await this.createChatRoomIfNotExists(currentUserId, owner.id);
+
+        return {
+            roomId: room.id,
+            owner: {
+                id: owner.id,
+                nick_name: owner.nick_name,
+                avatar: owner.avatar,
+                is_vehicle_verified: owner.is_vehicle_verified
+            }
+        };
     }
 }

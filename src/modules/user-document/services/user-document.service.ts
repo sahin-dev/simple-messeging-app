@@ -191,6 +191,14 @@ export class UserDocumentService {
       where: { id: documentId },
     });
 
+    // If deleting verified vehicle ownership document, remove verification badge
+    if (document.document_type === 'VEHICLE_OWNERSHIP' && document.is_verified) {
+      await this.prismaService.user.update({
+        where: { id: document.user_id },
+        data: { is_vehicle_verified: false },
+      });
+    }
+
     return { message: 'Document deleted successfully' };
   }
 
@@ -319,6 +327,7 @@ export class UserDocumentService {
       document_type: doc.document_type,
       document_url: doc.document_url,
       expiry_date: doc.expiry_date,
+      is_verified: doc.is_verified,
       isExpired: doc.expiry_date <= new Date(),
       daysUntilExpiry: this.getDaysUntilExpiry(doc.expiry_date),
       createdAt: doc.createdAt,
@@ -345,6 +354,45 @@ export class UserDocumentService {
   }
 
   /**
+   * Verify user document (Admin only)
+   */
+  async verifyDocument(documentId: string, isVerified: boolean) {
+    const document = await this.prismaService.userDocument.findUnique({
+      where: { id: documentId },
+      include: { user: true },
+    });
+
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    if (isVerified && document.document_type === 'VEHICLE_OWNERSHIP') {
+      if (!document.user.licence_id) {
+        throw new BadRequestException('User has no license ID in their profile to match');
+      }
+      if (document.user.licence_id.trim().toLowerCase() !== document.unique_id.trim().toLowerCase()) {
+        throw new BadRequestException(
+          `Verification failed: License plate in profile (${document.user.licence_id}) does not match the document unique ID (${document.unique_id})`
+        );
+      }
+    }
+
+    const updatedDocument = await this.prismaService.userDocument.update({
+      where: { id: documentId },
+      data: { is_verified: isVerified },
+    });
+
+    if (document.document_type === 'VEHICLE_OWNERSHIP') {
+      await this.prismaService.user.update({
+        where: { id: document.user_id },
+        data: { is_vehicle_verified: isVerified },
+      });
+    }
+
+    return this.formatDocumentResponse(updatedDocument);
+  }
+
+  /**
    * Format document response with expiry information
    */
   private formatDocumentResponse(document: any) {
@@ -358,6 +406,7 @@ export class UserDocumentService {
       document_type: document.document_type,
       document_url: document.document_url,
       expiry_date: document.expiry_date,
+      is_verified: document.is_verified,
       isExpired,
       daysUntilExpiry,
       createdAt: document.createdAt,

@@ -101,6 +101,7 @@ export class UserDocumentController {
         document_type: document.document_type,
         document_url: document.document_url,
         expiry_date: document.expiry_date.toISOString().split('T')[0],
+        is_verified: document.is_verified,
         isExpired: document.expiry_date < new Date(),
         daysUntilExpiry: Math.ceil(
           (document.expiry_date.getTime() - new Date().getTime()) /
@@ -135,6 +136,7 @@ export class UserDocumentController {
         document_type: doc.document_type,
         document_url: doc.document_url,
         expiry_date: doc.expiry_date.toISOString().split('T')[0],
+        is_verified: doc.is_verified,
         isExpired: doc.expiry_date < new Date(),
         daysUntilExpiry: Math.ceil(
           (doc.expiry_date.getTime() - new Date().getTime()) /
@@ -178,6 +180,7 @@ export class UserDocumentController {
         document_type: document.document_type,
         document_url: document.document_url,
         expiry_date: document.expiry_date.toISOString().split('T')[0],
+        is_verified: document.is_verified,
         isExpired: document.expiry_date < new Date(),
         daysUntilExpiry: Math.ceil(
           (document.expiry_date.getTime() - new Date().getTime()) /
@@ -219,6 +222,7 @@ export class UserDocumentController {
         document_type: document.document_type,
         document_url: document.document_url,
         expiry_date: document.expiry_date.toISOString().split('T')[0],
+        is_verified: document.is_verified,
         isExpired: document.expiry_date < new Date(),
         daysUntilExpiry: Math.ceil(
           (document.expiry_date.getTime() - new Date().getTime()) /
@@ -301,6 +305,7 @@ export class UserDocumentController {
         document_type: document.document_type,
         document_url: document.document_url,
         expiry_date: document.expiry_date.toISOString().split('T')[0],
+        is_verified: document.is_verified,
         isExpired: document.expiry_date < new Date(),
         daysUntilExpiry: Math.ceil(
           (document.expiry_date.getTime() - new Date().getTime()) /
@@ -363,6 +368,7 @@ export class UserDocumentController {
           document_type: doc.document_type,
           document_url: doc.document_url,
           expiry_date: doc.expiry_date.toISOString().split('T')[0],
+          is_verified: doc.is_verified,
           isExpired: doc.expiry_date < new Date(),
           daysUntilExpiry: Math.ceil(
             (doc.expiry_date.getTime() - new Date().getTime()) /
@@ -436,6 +442,7 @@ export class UserDocumentController {
         document_type: doc.document_type,
         document_url: doc.document_url,
         expiry_date: doc.expiry_date.toISOString().split('T')[0],
+        is_verified: doc.is_verified,
         isExpired: doc.isExpired,
         daysUntilExpiry: doc.daysUntilExpiry,
         createdAt: doc.createdAt,
@@ -454,6 +461,22 @@ export class UserDocumentController {
         err.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  /**
+   * Admin endpoint to verify a user document
+   */
+  @Patch('admin/verify/:documentId')
+  @Roles(UserRole.ADMIN)
+  @ResponseMessage('Document verification status updated successfully')
+  async verifyDocument(
+    @Param('documentId') documentId: string,
+    @Body('is_verified') is_verified: boolean,
+  ) {
+    if (is_verified === undefined) {
+      throw new BadRequestException('is_verified body parameter is required');
+    }
+    return this.userDocumentService.verifyDocument(documentId, is_verified);
   }
 }
 
