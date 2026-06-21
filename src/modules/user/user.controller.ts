@@ -232,7 +232,6 @@ export class UserController {
                 .card {
                     background: white;
                     border-radius: 20px;
-                    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
                     padding: 40px;
                     text-align: center;
                     width: 320px;
