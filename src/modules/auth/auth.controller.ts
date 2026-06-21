@@ -45,7 +45,19 @@ export class AuthController {
     @Public()
     @ResponseMessage("User registered successfully")
     async registerUser(@Body() registerDto: RegisterUserDto) {
-        return await this.authService.registerUser(registerDto);
+        const user = await this.authService.registerUser(registerDto);
+
+        if (user.role === UserRole.USER) {
+            return plainToInstance(SignInResponseDto, user, {
+                excludeExtraneousValues: true,
+                groups: [UserRole.USER]
+            });
+        }
+
+        return plainToInstance(SignInResponseDto, user, {
+            excludeExtraneousValues: true,
+            groups: [UserRole.ADMIN]
+        });
     }
 
     @Get("me")
