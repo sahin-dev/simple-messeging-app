@@ -574,23 +574,29 @@ export class ChatService {
         }
 
         const existingRoom = await this.getChatRoomIfExist(currentUserId, owner.id);
-        const isExistingChat = !!existingRoom;
-
-        const room = existingRoom ?? await this.createChatRoomIfNotExists(currentUserId, owner.id);
 
         const ratingData = await this.ratingService.getAverageRatingForUser(owner.id);
 
+        const user = {
+            id: owner.id,
+            nick_name: owner.nick_name,
+            avatar: owner.avatar,
+            licence_id: owner.licence_id,
+            is_blocked: owner.is_blocked,
+            rating: ratingData.averageRating
+        };
+
+        if (existingRoom) {
+            return {
+                roomId: existingRoom.id,
+                user,
+                isExistingChat: true
+            };
+        }
+
         return {
-            roomId: room.id,
-            user: {
-                id: owner.id,
-                nick_name: owner.nick_name,
-                avatar: owner.avatar,
-                licence_id: owner.licence_id,
-                is_blocked: owner.is_blocked,
-                rating: ratingData.averageRating
-            },
-            isExistingChat
+            user,
+            isExistingChat: false
         };
     }
 }
