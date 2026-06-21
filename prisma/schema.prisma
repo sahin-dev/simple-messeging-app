@@ -32,10 +32,11 @@ model User {
   account_type             AccountType @default(FREE)
   qr_code                  String?
 
-  vehicle_type        VehicleType?
-  vehicle_model       String?
-  vehicle_color       String?
-  is_vehicle_verified Boolean      @default(false)
+  vehicle_type                            VehicleType?
+  vehicle_model                           String?
+  vehicle_color                           String?
+  is_vehicle_verified                     Boolean      @default(false)
+  is_vehicle_ownership_document_submitted Boolean      @default(false)
 
   otp                    String?
   otp_expires            DateTime?
@@ -145,17 +146,17 @@ model GroupChat {
 }
 
 model Chat {
-  id           String      @id @default(auto()) @map("_id") @db.ObjectId
-  chatRoom_id  String      @db.ObjectId
-  sender_id    String      @db.ObjectId
-  receiver_id  String      @db.ObjectId
-  message      String
-  type         MessageType @default(TEXT)
-  is_read      Boolean     @default(false)
-  is_delivered Boolean     @default(false)
-  file_url     String?
-  file_name    String?
-  file_size    Int?
+  id             String      @id @default(auto()) @map("_id") @db.ObjectId
+  chatRoom_id    String      @db.ObjectId
+  sender_id      String      @db.ObjectId
+  receiver_id    String      @db.ObjectId
+  message        String
+  type           MessageType @default(TEXT)
+  is_read        Boolean     @default(false)
+  is_delivered   Boolean     @default(false)
+  file_url       String?
+  file_name      String?
+  file_size      Int?
   file_mime_type String?
 
   chatRoom ChatRoom @relation(fields: [chatRoom_id], references: [id], onDelete: Cascade)
@@ -278,36 +279,36 @@ model BlackListedWord {
 }
 
 model ParkingReport {
-  id                         String                   @id @default(auto()) @map("_id") @db.ObjectId
-  user_id                    String                   @db.ObjectId
-  user                       User                     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  id                         String                    @id @default(auto()) @map("_id") @db.ObjectId
+  user_id                    String                    @db.ObjectId
+  user                       User                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
   latitude                   Float
   longitude                  Float
   parking_cost               ParkingCost
   electric_charging          Boolean
   disabled_facility          Boolean
   disabled_facility_location DisabledFacilityLocation?
-  is_active                  Boolean                  @default(true)
-  createdAt                  DateTime                 @default(now())
+  is_active                  Boolean                   @default(true)
+  createdAt                  DateTime                  @default(now())
   expiresAt                  DateTime?
-  spotId                     String?                  @db.ObjectId
-  spot                       ParkingSpot?             @relation(fields: [spotId], references: [id])
-  updatedAt                  DateTime                 @updatedAt
+  spotId                     String?                   @db.ObjectId
+  spot                       ParkingSpot?              @relation(fields: [spotId], references: [id])
+  updatedAt                  DateTime                  @updatedAt
 
   @@map("parking_reports")
 }
 
 model ParkingSpot {
-  id                         String                   @id @default(auto()) @map("_id") @db.ObjectId
+  id                         String                    @id @default(auto()) @map("_id") @db.ObjectId
   latitude                   Float
   longitude                  Float
   parking_cost               ParkingCost
   electric_charging          Boolean
   disabled_facility          Boolean
   disabled_facility_location DisabledFacilityLocation?
-  is_active                  Boolean                  @default(true)
-  available                  Boolean                  @default(true)
-  createdAt                  DateTime                 @default(now())
+  is_active                  Boolean                   @default(true)
+  available                  Boolean                   @default(true)
+  createdAt                  DateTime                  @default(now())
   reports                    ParkingReport[]
 }
 

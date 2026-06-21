@@ -104,4 +104,7 @@ export class UserResponseDto {
 
     @Expose()
     is_vehicle_verified: boolean
+
+    @Expose()
+    is_vehicle_ownership_document_submitted: boolean
 }

@@ -29,9 +29,15 @@ export class SignInResponseDto {
 
     @Expose()
     token: string
-    
+
     @Expose()
-    license_no_verified:boolean
+    license_no_verified: boolean
+
+    @Expose()
+    is_vehicle_verified: boolean
+
+    @Expose()
+    is_vehicle_ownership_document_submitted: boolean
 
 
 }
