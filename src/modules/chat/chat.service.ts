@@ -40,14 +40,16 @@ export class ChatService {
             throw new Error("Receiver user not found");
         }
 
-        const isBlockExist = await this.prismaService.blockList.findFirst({where:{
-            OR:[
-                {blocked_user_id:userId, user_id:sendMessageDto.receiver_id},
-                {blocked_user_id:sendMessageDto.receiver_id, user_id:userId}
-            ]
-        }})
+        const isBlockExist = await this.prismaService.blockList.findFirst({
+            where: {
+                OR: [
+                    { blocked_user_id: userId, user_id: sendMessageDto.receiver_id },
+                    { blocked_user_id: sendMessageDto.receiver_id, user_id: userId }
+                ]
+            }
+        })
 
-        if(isBlockExist){
+        if (isBlockExist) {
             throw new BadRequestException("You can not messaged this account")
         }
 
@@ -254,7 +256,7 @@ export class ChatService {
                                 licence_id: true,
                                 avatar: true,
                             },
-                        
+
                         },
                         user2: {
                             select: {
@@ -366,11 +368,11 @@ export class ChatService {
             const otherUser = room.user1_id === userId ? user2 : user1;
             const latestChat = chats[0];
             const is_latest_message_mine = latestChat?.sender_id === userId;
-            const isBlockedByMe = await this.prismaService.blockList.findFirst({where:{user_id:userId, blocked_user_id:otherUser.id}})
-            const isBlockedMe = await this.prismaService.blockList.findFirst({where:{user_id:otherUser.id, blocked_user_id:userId}})
+            const isBlockedByMe = await this.prismaService.blockList.findFirst({ where: { user_id: userId, blocked_user_id: otherUser.id } })
+            const isBlockedMe = await this.prismaService.blockList.findFirst({ where: { user_id: otherUser.id, blocked_user_id: userId } })
             const rating = await this.ratingService.getAverageRatingForUser(otherUser.id)
-            
-            Object.assign(otherUser, {rating:rating.averageRating})
+
+            Object.assign(otherUser, { rating: rating.averageRating })
 
             return {
                 ...room,
@@ -446,11 +448,11 @@ export class ChatService {
         const skip = (getAllMessageDto.page - 1) * getAllMessageDto.limit;
 
         const isUserValid = await this.isUserExistOnRoom(userId, getAllMessageDto.roomId)
-        
-        if(!isUserValid){
+
+        if (!isUserValid) {
             throw new BadRequestException("You are not allowed to see this room.")
         }
-        
+
 
         console.log(getAllMessageDto)
 
@@ -515,16 +517,18 @@ export class ChatService {
         return chat;
     }
 
-    async isUserExistOnRoom(userId:string, roomId:string){
-        const room = await this.prismaService.chatRoom.findFirst({where:{
-            id:roomId,
-            OR:[
-                {user1_id:userId},
-                {user2_id:userId}
-            ]
-        }})
+    async isUserExistOnRoom(userId: string, roomId: string) {
+        const room = await this.prismaService.chatRoom.findFirst({
+            where: {
+                id: roomId,
+                OR: [
+                    { user1_id: userId },
+                    { user2_id: userId }
+                ]
+            }
+        })
 
-        if(room)
+        if (room)
             return true
 
         return false
@@ -552,8 +556,8 @@ export class ChatService {
                 id: true,
                 nick_name: true,
                 avatar: true,
+                licence_id: true,
                 is_blocked: true,
-                is_vehicle_verified: true
             }
         });
 
@@ -569,16 +573,24 @@ export class ChatService {
             throw new BadRequestException("You cannot start a chat with yourself");
         }
 
-        const room = await this.createChatRoomIfNotExists(currentUserId, owner.id);
+        const existingRoom = await this.getChatRoomIfExist(currentUserId, owner.id);
+        const isExistingChat = !!existingRoom;
+
+        const room = existingRoom ?? await this.createChatRoomIfNotExists(currentUserId, owner.id);
+
+        const ratingData = await this.ratingService.getAverageRatingForUser(owner.id);
 
         return {
             roomId: room.id,
-            owner: {
+            user: {
                 id: owner.id,
                 nick_name: owner.nick_name,
                 avatar: owner.avatar,
-                is_vehicle_verified: owner.is_vehicle_verified
-            }
+                licence_id: owner.licence_id,
+                is_blocked: owner.is_blocked,
+                rating: ratingData.averageRating
+            },
+            isExistingChat
         };
     }
 }
