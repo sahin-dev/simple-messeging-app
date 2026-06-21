@@ -66,7 +66,7 @@ export class ChatController {
 
     @Post("rooms/by-plate")
     @HttpCode(200)
-    @ResponseMessage("Conversation started successfully")
+    @ResponseMessage("User info fetched successfully")
     async startConversationByPlate(
         @Req() request: Request,
         @Body("plate_no") plate_no: string
