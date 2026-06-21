@@ -47,7 +47,7 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         private readonly groupChatService: GroupChatService,
         private readonly socketRoomService: SocketRoomService,
         // private readonly server: Server
-    ) {}
+    ) { }
 
     /**
      * Initialize gateway and set server on SocketRoomService
@@ -93,7 +93,7 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
             const user = await this.userService.findUserById(userId)
 
             if (!user) {
-                throw new Error("use not found")
+                throw new WsException("user not found")
             }
             // Join user to their personal room
             client.join(this.generateUserRoomId(userId))
@@ -102,14 +102,14 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
             client.emit(EMIT_EVENTS.SUCCESS, { message: "User Successfully Connected With Socket" })
 
-        } catch (err:any) {
+        } catch (err: any) {
             console.log(err)
             throw new WsException({ message: err.message })
 
         }
     }
 
-    
+
 
 
     @SubscribeMessage("greeting")
@@ -126,7 +126,7 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         try {
 
             const userId = client.data.userId
-            
+
             const chat = await this.chatService.createMessage(userId, data)
 
             // Send to receiver
@@ -144,12 +144,22 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
     @SubscribeMessage(SUBSCRIBED_EVENTS.MESSAGE_RECEIVED)
     async handleMesssageDelivery(@MessageBody() acknowledgements: MessageAcknowledgementDto, @ConnectedSocket() client: Socket) {
-
-        acknowledgements.messageIds.forEach(async (messageId) => {
-            const chat = await this.chatService.acknowledgeMessageDelivery(messageId)
-            // Notify sender that message was delivered
-            this.server.to(this.generateUserRoomId(chat.sender_id)).emit(EMIT_EVENTS.MESSAGE_DELIVERED, chat)
-        })
+        try {
+            if (acknowledgements && Array.isArray(acknowledgements.messageIds)) {
+                acknowledgements.messageIds.forEach(async (messageId) => {
+                    try {
+                        const chat = await this.chatService.acknowledgeMessageDelivery(messageId)
+                        // Notify sender that message was delivered
+                        this.server.to(this.generateUserRoomId(chat.sender_id)).emit(EMIT_EVENTS.MESSAGE_DELIVERED, chat)
+                    } catch (innerErr: any) {
+                        console.error(`Error acknowledging message ${messageId}:`, innerErr);
+                    }
+                })
+            }
+        } catch (err: any) {
+            console.error('Error in handleMesssageDelivery:', err);
+            throw new WsException({ message: err.message });
+        }
     }
 
 
@@ -159,34 +169,44 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
     @SubscribeMessage(SUBSCRIBED_EVENTS.FETCH_CHAT_ROOMS)
     async getAllUserRooms(@MessageBody() getUserRoomsDto: GetUserRoomsDto, @ConnectedSocket() client: Socket) {
-        const userId = client.data.userId
+        try {
+            const userId = client.data.userId
 
-        const rooms = await this.chatService.getUserChatRooms(userId, getUserRoomsDto)
-        console.log(rooms)
-        const roomDto = plainToInstance(AllUserRoomsDto, rooms, {
-            excludeExtraneousValues: true
-        })
+            const rooms = await this.chatService.getUserChatRooms(userId, getUserRoomsDto)
+            console.log(rooms)
+            const roomDto = plainToInstance(AllUserRoomsDto, rooms, {
+                excludeExtraneousValues: true
+            })
 
-        this.server.to(this.generateUserRoomId(userId)).emit(EMIT_EVENTS.ALL_CHAT_ROOMS, {
-            ...roomDto
-        })
+            this.server.to(this.generateUserRoomId(userId)).emit(EMIT_EVENTS.ALL_CHAT_ROOMS, {
+                ...roomDto
+            })
+        } catch (err: any) {
+            console.error('Error in getAllUserRooms:', err);
+            throw new WsException({ message: err.message });
+        }
     }
 
     @SubscribeMessage(SUBSCRIBED_EVENTS.FETCH_MESSAGES)
     async getAllRoomMessages(@MessageBody() getAllMessageDto: GetAllMessagesDto, @ConnectedSocket() client: Socket) {
-        const userId = client.data.userId
+        try {
+            const userId = client.data.userId
 
-        console.log(getAllMessageDto)
+            console.log(getAllMessageDto)
 
-        const messages = await this.chatService.getRoomMessages(userId, getAllMessageDto)
+            const messages = await this.chatService.getRoomMessages(userId, getAllMessageDto)
 
-        const messageDto = plainToInstance(AllMessageDto, messages, {
-            excludeExtraneousValues: true
-        })
+            const messageDto = plainToInstance(AllMessageDto, messages, {
+                excludeExtraneousValues: true
+            })
 
-        this.server.to(this.generateUserRoomId(userId)).emit(EMIT_EVENTS.ALL_MESSAGES, {
-            ...messageDto
-        })
+            this.server.to(this.generateUserRoomId(userId)).emit(EMIT_EVENTS.ALL_MESSAGES, {
+                ...messageDto
+            })
+        } catch (err: any) {
+            console.error('Error in getAllRoomMessages:', err);
+            throw new WsException({ message: err.message });
+        }
     }
 
     /**
