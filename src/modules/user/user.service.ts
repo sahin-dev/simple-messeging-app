@@ -3,6 +3,8 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CreateUserDto } from "./dtos/create-user.dto";
 import { EncoderProvider } from "src/common/providres/encoder.provider";
 import { UpdateUserDto } from "./dtos/update-user.dto";
+import { AddVehicleInfoDto } from "./dtos/add-vehicle-info.dto";
+import { UpdateVehicleInfoDto } from "./dtos/update-vehicle-info.dto";
 import { User, UserRole } from "generated/prisma/client";
 import { ChangePasswordDto } from "./dtos/change-password.dto";
 import { SMTPProvider } from "src/common/providres/smtp.provider";
@@ -899,4 +901,62 @@ export class UserService {
 
         return updatedUser;
     }
+
+    /**
+     * Add/update vehicle information for a user
+     * @param userId 
+     * @param addVehicleInfoDto 
+     * @returns 
+     */
+    async addVehicleInfo(userId: string, addVehicleInfoDto: AddVehicleInfoDto) {
+        const user = await this.prismaService.user.findUnique({ where: { id: userId } });
+
+        if (!user) {
+            throw new NotFoundException("User not found");
+        }
+
+        const updatedUser = await this.prismaService.user.update({
+            where: { id: userId },
+            data: {
+                vehicle_type: addVehicleInfoDto.vehicle_type,
+                vehicle_model: addVehicleInfoDto.vehicle_model,
+                vehicle_color: addVehicleInfoDto.vehicle_color,
+            },
+        });
+
+        return updatedUser;
+    }
+
+    /**
+     * Update vehicle information for a user
+     * @param userId 
+     * @param updateVehicleInfoDto 
+     * @returns 
+     */
+    async updateVehicleInfo(userId: string, updateVehicleInfoDto: UpdateVehicleInfoDto) {
+        const user = await this.prismaService.user.findUnique({ where: { id: userId } });
+
+        if (!user) {
+            throw new NotFoundException("User not found");
+        }
+
+        const updatedData: Partial<User> = {};
+        if (updateVehicleInfoDto.vehicle_type !== undefined) {
+            updatedData.vehicle_type = updateVehicleInfoDto.vehicle_type;
+        }
+        if (updateVehicleInfoDto.vehicle_model !== undefined) {
+            updatedData.vehicle_model = updateVehicleInfoDto.vehicle_model;
+        }
+        if (updateVehicleInfoDto.vehicle_color !== undefined) {
+            updatedData.vehicle_color = updateVehicleInfoDto.vehicle_color;
+        }
+
+        const updatedUser = await this.prismaService.user.update({
+            where: { id: userId },
+            data: updatedData,
+        });
+
+        return updatedUser;
+    }
 }
+

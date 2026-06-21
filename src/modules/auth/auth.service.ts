@@ -67,14 +67,14 @@ export class AuthService {
         const token = await this.signJwtToken(user);
         this.logger.log(`${user.nick_name ?? user.name} logged in.`);
 
-        if(signInDto.fcm_token){
-        await this.prismaService.user.update({
-            where: { id: user.id },
-            data: {
-                fcm_token: signInDto.fcm_token
-            }
-        })
-    }
+        if (signInDto.fcm_token) {
+            await this.prismaService.user.update({
+                where: { id: user.id },
+                data: {
+                    fcm_token: signInDto.fcm_token
+                }
+            })
+        }
 
         return { ...user, token };
     }
@@ -108,27 +108,29 @@ export class AuthService {
      */
     async registerUser(@Body() registerUserDto: RegisterUserDto) {
 
-        const existingNickName = await this.prismaService.user.findUnique({where:{nick_name:registerUserDto.nick_name}})
+        const existingNickName = await this.prismaService.user.findUnique({ where: { nick_name: registerUserDto.nick_name } })
 
-        if(existingNickName){
+        if (existingNickName) {
             throw new ConflictException("Nick name already taken.Try another one.")
         }
 
-        const existingEmail= await this.prismaService.user.findUnique({
-            where: { email: registerUserDto.email}
+        const existingEmail = await this.prismaService.user.findUnique({
+            where: { email: registerUserDto.email }
         });
 
-        if(existingEmail){
+        if (existingEmail) {
             throw new ConflictException('This email is already associated with an email. Kindly try another email.')
         }
 
         // Check if licence_id already exists
-        const existingLicence = await this.prismaService.user.findMany({
-            where: { licence_id: registerUserDto.licence_id}
-        });
+        if (registerUserDto.licence_id) {
+            const existingLicence = await this.prismaService.user.findFirst({
+                where: { licence_id: registerUserDto.licence_id }
+            });
 
-        if (existingLicence.length >=5) {
-            throw new ConflictException('This licence ID is already associated with 5 accounts.');
+            if (existingLicence) {
+                throw new ConflictException('This licence ID is already associated with an account.');
+            }
         }
 
         if (registerUserDto.password !== registerUserDto.confirmPassword) {
@@ -137,18 +139,18 @@ export class AuthService {
 
         const { confirmPassword, ...userData } = registerUserDto;
         const user = await this.userService.addUser(userData);
-        
-        
+
+
         this.smtpProvider.sendMail(
-        user.email,
-        "Welcome to PLATEChatter",
-        welcomeEmailTemplate({ name: user.name || user.nick_name || "User" })
-        ).then(()=> {
+            user.email,
+            "Welcome to PLATEChatter",
+            welcomeEmailTemplate({ name: user.name || user.nick_name || "User" })
+        ).then(() => {
             this.logger.log(`Welcome email sent to ${user.email}`)
         })
 
-      
-        return { message: "Verification email sent to the email", user: { id: user.id, licence_id: user.licence_id, nick_name: user.nick_name,is_email_verified:user.email_verified } };
+
+        return { message: "Verification email sent to the email", user: { id: user.id, licence_id: user.licence_id, nick_name: user.nick_name, is_email_verified: user.email_verified } };
     }
 
     /**
@@ -170,7 +172,7 @@ export class AuthService {
     async getAuthenticatedUser(userId: string) {
         const userDetails = await this.userService.findUserById(userId);
         const ratingInfo = await this.ratingService.getAverageRatingForUser(userId);
-        
+
         return {
             ...userDetails,
             rating: ratingInfo.averageRating
@@ -206,44 +208,44 @@ export class AuthService {
         return { message: "OTP sent successfully" };
     }
 
-     /**
-     * 
-     * @param email 
-     * @returns 
-     */
-    async resendEmailVerificationCode(email:string){
+    /**
+    * 
+    * @param email 
+    * @returns 
+    */
+    async resendEmailVerificationCode(email: string) {
         const user = await this.userService.findUserByEmail(email)
 
-        if(!user){
+        if (!user) {
             throw new NotFoundException("user not found")
         }
-        await this.sendEmailVerificationCode(user.id, user.name || "User",user.email)
+        await this.sendEmailVerificationCode(user.id, user.name || "User", user.email)
 
-        return {message:"email verification code resent successfully"}
+        return { message: "email verification code resent successfully" }
     }
-    
+
     /**
      * 
      * @param name 
      * @param email 
      */
 
-    private async sendEmailVerificationCode(userId:string, name:string, email:string){
+    private async sendEmailVerificationCode(userId: string, name: string, email: string) {
 
         const code = this.generateEmailVerificationCode()
         const expirationTime = new Date(Date.now() + 10 * 60 * 1000)
-        this.prismaService.user.update({where:{id:userId}, data:{otp:code, otp_expires:expirationTime}})
-        const emailTemplate = ({name,verificationCode:code, verificationCodeExpire:10})
+        this.prismaService.user.update({ where: { id: userId }, data: { otp: code, otp_expires: expirationTime } })
+        const emailTemplate = ({ name, verificationCode: code, verificationCodeExpire: 10 })
 
-        this.smtpProvider.sendMail(email, "Email Verification code", otpEmailTemplate({name, otp:code}))
+        this.smtpProvider.sendMail(email, "Email Verification code", otpEmailTemplate({ name, otp: code }))
     }
 
-     /**
-     * 
-     * @returns 
-     */
+    /**
+    * 
+    * @returns 
+    */
 
-    private generateEmailVerificationCode(){
+    private generateEmailVerificationCode() {
 
         return Math.round(100000 + Math.random() * 900000).toString()
     }

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Req, Res, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { UserService } from "./user.service";
 import { plainToInstance } from "class-transformer";
 import { UserResponseDto } from "./dtos/user-response.dto";
@@ -23,6 +23,8 @@ import { DeleteAccountDto } from "./dtos/delete-account.dto";
 import { ScanQrCodeDto } from "./dtos/scan-qr-code.dto";
 import { UpdateUserLocationDto } from "./dtos/update-user-location.dto";
 import { VerifyLicenseDto } from "./dtos/verify-license.dto";
+import { AddVehicleInfoDto } from "./dtos/add-vehicle-info.dto";
+import { UpdateVehicleInfoDto } from "./dtos/update-vehicle-info.dto";
 
 
 @Controller({
@@ -41,12 +43,12 @@ export class UserController {
 
         const tokenPayload = req['payload'] as TokenPayload;
 
-        if (searchDto.for === "group" || searchDto.roomId){
+        if (searchDto.for === "group" || searchDto.roomId) {
             const paginationDto = new PaginationDto();
             paginationDto.page = searchDto.page;
             paginationDto.limit = searchDto.limit;
-            const users = await this.userService.searchUsersToAddToGroup(searchDto.roomId!, tokenPayload.id,searchDto.query, paginationDto);
-                return users.users.map(user => plainToInstance(UserResponseDto, user, {
+            const users = await this.userService.searchUsersToAddToGroup(searchDto.roomId!, tokenPayload.id, searchDto.query, paginationDto);
+            return users.users.map(user => plainToInstance(UserResponseDto, user, {
                 excludeExtraneousValues: true,
                 groups: [UserRole.USER]
             }))
@@ -144,29 +146,29 @@ export class UserController {
     @Patch("toggole-block")
     @ResponseMessage("User block status updated")
     @Roles(UserRole.ADMIN)
-    async blockUnblockAccount( @Body()blockUnblockDto:BlockUnblockDto){
+    async blockUnblockAccount(@Body() blockUnblockDto: BlockUnblockDto) {
 
         const updatedUser = await this.userService.blockUnblockAccountByAdmin(blockUnblockDto.userId)
 
         return plainToInstance(UserResponseDto, updatedUser, {
-            excludeExtraneousValues:true,
-            groups:[UserRole.ADMIN]
+            excludeExtraneousValues: true,
+            groups: [UserRole.ADMIN]
         })
     }
 
     @Patch("block")
-    async blockUser (@Req() request:Request, @Body() toggleBlockuser:TogggleBlockUserDto){
-            const payload = request['payload'] as TokenPayload
+    async blockUser(@Req() request: Request, @Body() toggleBlockuser: TogggleBlockUserDto) {
+        const payload = request['payload'] as TokenPayload
 
-            const updatedUser = await this.userService.blockUser(toggleBlockuser.userId, payload.id)
+        const updatedUser = await this.userService.blockUser(toggleBlockuser.userId, payload.id)
 
-            return updatedUser
+        return updatedUser
     }
 
     @Get("block-list")
-    async getUserBlockList(@Req() request:Request, @Query()pagination:PaginationDto){
+    async getUserBlockList(@Req() request: Request, @Query() pagination: PaginationDto) {
 
-        const payload=  request['payload'] as TokenPayload
+        const payload = request['payload'] as TokenPayload
 
         const blockList = await this.userService.getBlockedUsers(payload.id, pagination)
 
@@ -174,29 +176,29 @@ export class UserController {
     }
 
     @Patch("unblock")
-    async unBlockUser (@Req() request:Request, @Body() toggleBlockuser:TogggleBlockUserDto){
-            const payload = request['payload'] as TokenPayload
+    async unBlockUser(@Req() request: Request, @Body() toggleBlockuser: TogggleBlockUserDto) {
+        const payload = request['payload'] as TokenPayload
 
-            const updatedUser = await this.userService.unblockUser(toggleBlockuser.userId, payload.id)
+        const updatedUser = await this.userService.unblockUser(toggleBlockuser.userId, payload.id)
 
-            return updatedUser
+        return updatedUser
     }
 
     @Delete()
-    async deleteAccount(@Req() request:Request, @Body() deleteAccountDto:DeleteAccountDto){
+    async deleteAccount(@Req() request: Request, @Body() deleteAccountDto: DeleteAccountDto) {
         const payload = request['payload'] as TokenPayload;
         await this.userService.deleteAccount(payload.id, deleteAccountDto.password);
         return { message: "Account deleted successfully" };
     }
 
     @Get("help-support")
-    async helpSupport(){
+    async helpSupport() {
         const helpMessage = await this.userService.helpAndSupport();
         return { message: helpMessage };
     }
 
     @Get("generate-code")
-    async getQrCodeForUser(@Req() request:Request){
+    async getQrCodeForUser(@Req() request: Request) {
         const payload = request['payload'] as TokenPayload;
         const qrcode = await this.userService.generateQrCodeForUser(payload.id)
         return { qr_code: qrcode }
@@ -320,7 +322,7 @@ export class UserController {
 
     @Post("scan-qr-code")
     @ResponseMessage("User info fetched successfully")
-    async scanQrCode(@Req() request:Request, @Body() scanQrCodeDto: ScanQrCodeDto){
+    async scanQrCode(@Req() request: Request, @Body() scanQrCodeDto: ScanQrCodeDto) {
         const payload = request['payload'] as TokenPayload;
         const userInfo = await this.userService.getUserInfoFromQrCode(payload.id, scanQrCodeDto.qrData)
         return userInfo;
@@ -363,6 +365,44 @@ export class UserController {
             tokenPayload.id,
             verifyLicenseDto.plate_no
         );
+        return plainToInstance(UserResponseDto, updatedUser, {
+            excludeExtraneousValues: true,
+            groups: [UserRole.ADMIN, UserRole.USER],
+        });
+    }
+
+    /**
+     * Add vehicle information for a user
+     */
+    @Post("vehicle")
+    @ResponseMessage("Vehicle information added successfully")
+    async addVehicleInfo(
+
+        @Body() addVehicleInfoDto: AddVehicleInfoDto,
+        @Req() request: Request,
+    ) {
+        const tokenPayload = request['payload'] as TokenPayload;
+
+        const updatedUser = await this.userService.addVehicleInfo(tokenPayload.id, addVehicleInfoDto);
+        return plainToInstance(UserResponseDto, updatedUser, {
+            excludeExtraneousValues: true,
+            groups: [UserRole.ADMIN, UserRole.USER],
+        });
+    }
+
+    /**
+     * Update vehicle information for a user
+     */
+    @Patch("vehicle")
+    @ResponseMessage("Vehicle information updated successfully")
+    async updateVehicleInfo(
+
+        @Body() updateVehicleInfoDto: UpdateVehicleInfoDto,
+        @Req() request: Request,
+    ) {
+        const tokenPayload = request['payload'] as TokenPayload;
+
+        const updatedUser = await this.userService.updateVehicleInfo(tokenPayload.id, updateVehicleInfoDto);
         return plainToInstance(UserResponseDto, updatedUser, {
             excludeExtraneousValues: true,
             groups: [UserRole.ADMIN, UserRole.USER],

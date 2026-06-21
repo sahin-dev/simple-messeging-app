@@ -55,6 +55,13 @@ export class UserDocumentService {
       },
     });
 
+    if (uploadDto.document_type === 'VEHICLE_OWNERSHIP') {
+      await this.prismaService.user.update({
+        where: { id: userId },
+        data: { is_vehicle_ownership_document_submitted: true },
+      });
+    }
+
     return this.formatDocumentResponse(document);
   }
 
@@ -191,11 +198,15 @@ export class UserDocumentService {
       where: { id: documentId },
     });
 
-    // If deleting verified vehicle ownership document, remove verification badge
-    if (document.document_type === 'VEHICLE_OWNERSHIP' && document.is_verified) {
+    // If deleting vehicle ownership document, remove submission status and verification badge if verified
+    if (document.document_type === 'VEHICLE_OWNERSHIP') {
+      const updateData: any = { is_vehicle_ownership_document_submitted: false };
+      if (document.is_verified) {
+        updateData.is_vehicle_verified = false;
+      }
       await this.prismaService.user.update({
         where: { id: document.user_id },
-        data: { is_vehicle_verified: false },
+        data: updateData,
       });
     }
 
