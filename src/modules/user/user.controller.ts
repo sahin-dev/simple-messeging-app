@@ -236,7 +236,7 @@ export class UserController {
                     padding: 40px;
                     text-align: center;
                     width: 320px;
-                    border: 1px solid #e5e7eb;
+                    border: 1px solid #f3f4f6;
                     position: relative;
                 }
                 .logo-container {
