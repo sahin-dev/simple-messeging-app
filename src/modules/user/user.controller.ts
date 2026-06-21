@@ -311,7 +311,6 @@ export class UserController {
                 <img class="qr-image" src="${qrcode}" alt="QR Code" />
                 <div class="username">@${user.nick_name}</div>
                 <div class="license-plate">Plate: ${user.licence_id || 'N/A'}</div>
-                <button class="print-btn" onclick="window.print()">Print Card</button>
             </div>
         </body>
         </html>
