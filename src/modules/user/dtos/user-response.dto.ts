@@ -21,7 +21,7 @@ export class UserResponseDto {
     @Expose({ groups: [UserRole.ADMIN] })
     name: string
 
-    @Expose({ groups: [UserRole.ADMIN] })
+    @Expose({ groups: [UserRole.ADMIN, UserRole.USER] })
     email: string
 
     @Expose()
@@ -31,9 +31,9 @@ export class UserResponseDto {
     role: string
 
     @Expose({
-        groups:[UserRole.ADMIN]
+        groups: [UserRole.ADMIN]
     })
-    is_more_options_accepted:boolean
+    is_more_options_accepted: boolean
 
     @Expose({ groups: [UserRole.USER] })
     licence_id: string
@@ -45,9 +45,9 @@ export class UserResponseDto {
     license_no_verified: boolean
 
     @Expose({
-        groups:[UserRole.ADMIN]
+        groups: [UserRole.ADMIN]
     })
-    is_blocked:boolean
+    is_blocked: boolean
 
     @Expose()
     designation: string
