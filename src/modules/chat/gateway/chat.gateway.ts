@@ -90,11 +90,21 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
         try {
             const userId = client.handshake.query.userId as string
+
+            if (!userId) {
+                client.emit(EMIT_EVENTS.ERROR, { message: "userId is required" })
+                client.disconnect()
+                return
+            }
+
             const user = await this.userService.findUserById(userId)
 
             if (!user) {
-                throw new WsException("user not found")
+                client.emit(EMIT_EVENTS.ERROR, { message: "User not found" })
+                client.disconnect()
+                return
             }
+
             // Join user to their personal room
             client.join(this.generateUserRoomId(userId))
 
@@ -103,9 +113,9 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
             client.emit(EMIT_EVENTS.SUCCESS, { message: "User Successfully Connected With Socket" })
 
         } catch (err: any) {
-            console.log(err)
-            throw new WsException({ message: err.message })
-
+            console.log(`Socket connection error for client ${client.id}:`, err)
+            client.emit(EMIT_EVENTS.ERROR, { message: err.message ?? "Connection failed" })
+            client.disconnect()
         }
     }
 
