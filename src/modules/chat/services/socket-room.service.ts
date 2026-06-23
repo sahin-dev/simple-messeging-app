@@ -40,6 +40,26 @@ export class SocketRoomService {
   }
 
   /**
+   * Check if a user is currently connected via socket
+   * @param userId The user ID to check
+   * @returns true if the user has at least one active socket connection
+   */
+  async isUserConnected(userId: string): Promise<boolean> {
+    if (!this.server) {
+      return false;
+    }
+
+    try {
+      const userRoomId = this.generateUserRoomId(userId);
+      const socketsInRoom = await this.server.in(userRoomId).fetchSockets();
+      return socketsInRoom.length > 0;
+    } catch (err) {
+      this.logger.error(`Error checking connection status for user ${userId}:`, err);
+      return false;
+    }
+  }
+
+  /**
    * Remove a specific user from a group socket room
    * Called when user is removed via HTTP endpoint or leaves group
    */

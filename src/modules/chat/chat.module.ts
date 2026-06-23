@@ -11,7 +11,7 @@ import { NotificationModule } from '../notification/notification.module';
 
 
 @Module({
-    imports:[forwardRef(() => UserModule), PrismaModule, GroupChatModule, RatingModule, NotificationModule],
+    imports:[forwardRef(() => UserModule), PrismaModule, GroupChatModule, RatingModule, forwardRef(() => NotificationModule)],
     controllers:[ChatController],
     providers:[
       ChatService, 
