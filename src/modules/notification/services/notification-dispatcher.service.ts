@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GeolocationService } from '../../../common/services/geolocation.service';
 import { NotificationEventService } from './notification-event.service';
@@ -16,7 +16,23 @@ export class NotificationDispatcherService {
     private readonly notificationEventService: NotificationEventService,
     private readonly notificationPreferenceService: NotificationPreferenceService,
     private readonly firebaseClient: FireBaseClient,
+    @Optional()
+    @Inject('SOCKET_ROOM_SERVICE')
+    private readonly socketRoomService?: any,
   ) {}
+
+  /**
+   * Check if a user is currently connected via socket
+   * Returns false if socket service is unavailable
+   */
+  private async isUserOnline(userId: string): Promise<boolean> {
+    if (!this.socketRoomService) return false;
+    try {
+      return await this.socketRoomService.isUserConnected(userId);
+    } catch {
+      return false;
+    }
+  }
 
   /**
    * Dispatch parking availability notification to users within radius
@@ -105,8 +121,13 @@ export class NotificationDispatcherService {
             payload,
           });
 
-          // Send push notification via FCM
-          await this.sendPushNotification(user.fcm_token, title, message);
+          // Send push notification via FCM only if user is not online
+          const isOnline = await this.isUserOnline(user.id);
+          if (!isOnline) {
+            await this.sendPushNotification(user.fcm_token, title, message);
+          } else {
+            this.logger.debug(`Skipping push notification for online user ${user.id}`);
+          }
 
           this.logger.log(
             `Sent parking notification to user ${user.id}`,
@@ -196,7 +217,12 @@ export class NotificationDispatcherService {
             payload,
           });
 
-          await this.sendPushNotification(user.fcm_token, title, message);
+          const isOnline = await this.isUserOnline(user.id);
+          if (!isOnline) {
+            await this.sendPushNotification(user.fcm_token, title, message);
+          } else {
+            this.logger.debug(`Skipping push notification for online user ${user.id}`);
+          }
 
           this.logger.log(`Sent parking leave notification to user ${user.id}`);
         } catch (err) {
@@ -236,6 +262,13 @@ export class NotificationDispatcherService {
 
       const title = `Message from ${chat.sender?.nick_name || chat.sender?.name}`;
       const message = chat.message.substring(0, 100);
+
+      // If the receiver is online, skip both the notification event and push notification
+      const isOnline = await this.isUserOnline(receiverId);
+      if (isOnline) {
+        this.logger.debug(`Skipping chat notification for online user ${receiverId}`);
+        return;
+      }
 
       await this.notificationEventService.createEvent({
         userId: receiverId,
@@ -299,7 +332,12 @@ export class NotificationDispatcherService {
         },
       });
 
-      await this.sendPushNotification(ratee.fcm_token, title, message);
+      const isOnline = await this.isUserOnline(rating.ratee_id);
+      if (!isOnline) {
+        await this.sendPushNotification(ratee.fcm_token, title, message);
+      } else {
+        this.logger.debug(`Skipping push notification for online user ${rating.ratee_id}`);
+      }
 
       this.logger.log(`Sent rating notification to user ${rating.ratee_id}`);
     } catch (err) {
@@ -339,6 +377,13 @@ export class NotificationDispatcherService {
 
           const title = `${groupChatRoom.name}`;
           const message = `${groupChat.sender?.nick_name || groupChat.sender?.name}: ${groupChat.message.substring(0, 50)}`;
+
+          // Skip notification event and push if member is online
+          const isOnline = await this.isUserOnline(member.user_id);
+          if (isOnline) {
+            this.logger.debug(`Skipping group chat notification for online user ${member.user_id}`);
+            continue;
+          }
 
           await this.notificationEventService.createEvent({
             userId: member.user_id,
@@ -403,7 +448,12 @@ export class NotificationDispatcherService {
             payload,
           });
 
-          await this.sendPushNotification(user.fcm_token, title, message);
+          const isOnline = await this.isUserOnline(userId);
+          if (!isOnline) {
+            await this.sendPushNotification(user.fcm_token, title, message);
+          } else {
+            this.logger.debug(`Skipping push notification for online user ${userId}`);
+          }
         } catch (err) {
           this.logger.error(
             `Failed to send system notification to user ${userId}:`,
@@ -486,21 +536,26 @@ export class NotificationDispatcherService {
 
           let sent = false;
 
-          // Send push notification if FCM token exists and enabled
+          // Send push notification if FCM token exists and enabled and user is not online
           if (sendPushNotification && user.fcm_token) {
-            try {
-              await this.sendPushNotification(user.fcm_token, title, message);
-              notificationsSent++;
-              sent = true;
-              this.logger.debug(
-                `Push notification sent to user ${user.id}`,
-              );
-            } catch (err) {
-              this.logger.error(
-                `Failed to send push notification to user ${user.id}:`,
-                err,
-              );
-              failedCount++;
+            const userIsOnline = await this.isUserOnline(user.id);
+            if (userIsOnline) {
+              this.logger.debug(`Skipping push notification for online user ${user.id}`);
+            } else {
+              try {
+                await this.sendPushNotification(user.fcm_token, title, message);
+                notificationsSent++;
+                sent = true;
+                this.logger.debug(
+                  `Push notification sent to user ${user.id}`,
+                );
+              } catch (err) {
+                this.logger.error(
+                  `Failed to send push notification to user ${user.id}:`,
+                  err,
+                );
+                failedCount++;
+              }
             }
           }
 
@@ -748,12 +803,17 @@ export class NotificationDispatcherService {
         payload: eventPayload as Record<string, any>,
       });
 
-      // Send FCM push notification
-      await this.firebaseClient.sendPushNotification(
-        user.fcm_token,
-        `${document.document_type} Document Expiring Soon`,
-        `Your document expires in ${daysUntilExpiry} days. Please renew it now.`,
-      );
+      // Send FCM push notification only if user is not online
+      const isOnline = await this.isUserOnline(user.id);
+      if (!isOnline) {
+        await this.firebaseClient.sendPushNotification(
+          user.fcm_token,
+          `${document.document_type} Document Expiring Soon`,
+          `Your document expires in ${daysUntilExpiry} days. Please renew it now.`,
+        );
+      } else {
+        this.logger.debug(`Skipping push notification for online user ${user.id}`);
+      }
 
       this.logger.log(
         `Document expiry notification sent to user ${user.id} for ${document.document_type}`,
@@ -804,12 +864,17 @@ export class NotificationDispatcherService {
         payload: eventPayload as Record<string, any>,
       });
 
-      // Send FCM push notification with high priority
-      await this.firebaseClient.sendPushNotification(
-        user.fcm_token,
-        `⚠️ ${document.document_type} Document Expired`,
-        'Your document has expired. Please renew it immediately.',
-      );
+      // Send FCM push notification only if user is not online
+      const isOnline = await this.isUserOnline(user.id);
+      if (!isOnline) {
+        await this.firebaseClient.sendPushNotification(
+          user.fcm_token,
+          `⚠️ ${document.document_type} Document Expired`,
+          'Your document has expired. Please renew it immediately.',
+        );
+      } else {
+        this.logger.debug(`Skipping push notification for online user ${user.id}`);
+      }
 
       this.logger.log(
         `Document expired notification sent to user ${user.id} for ${document.document_type}`,
@@ -863,9 +928,14 @@ export class NotificationDispatcherService {
             payload,
           });
 
-          // Send push notification if token exists
+          // Send push notification if token exists and admin is not online
           if (admin.fcm_token) {
-            await this.sendPushNotification(admin.fcm_token, title, message);
+            const isOnline = await this.isUserOnline(admin.id);
+            if (!isOnline) {
+              await this.sendPushNotification(admin.fcm_token, title, message);
+            } else {
+              this.logger.debug(`Skipping push notification for online admin ${admin.id}`);
+            }
           }
         } catch (err) {
           this.logger.error(`Failed to send admin notification to admin user ${admin.id}:`, err);
@@ -919,7 +989,12 @@ export class NotificationDispatcherService {
       });
 
       if (user.fcm_token) {
-        await this.sendPushNotification(user.fcm_token, title, message);
+        const isOnline = await this.isUserOnline(userId);
+        if (!isOnline) {
+          await this.sendPushNotification(user.fcm_token, title, message);
+        } else {
+          this.logger.debug(`Skipping push notification for online user ${userId}`);
+        }
       }
 
       this.logger.log(`Sent group added notification to user ${userId}`);
@@ -971,7 +1046,12 @@ export class NotificationDispatcherService {
       });
 
       if (user.fcm_token) {
-        await this.sendPushNotification(user.fcm_token, title, message);
+        const isOnline = await this.isUserOnline(userId);
+        if (!isOnline) {
+          await this.sendPushNotification(user.fcm_token, title, message);
+        } else {
+          this.logger.debug(`Skipping push notification for online user ${userId}`);
+        }
       }
 
       this.logger.log(`Sent group removed notification to user ${userId}`);

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationService } from './notification.service';
 import { NotificationController } from './notification.controller';
@@ -8,10 +8,11 @@ import { NotificationPreferenceService } from './services/notification-preferenc
 import { NotificationDispatcherService } from './services/notification-dispatcher.service';
 import { GeolocationService } from '../../common/services/geolocation.service';
 import { SMTPProvider } from '../../common/providres/smtp.provider';
+import { ChatModule } from '../chat/chat.module';
 
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, forwardRef(() => ChatModule)],
   controllers: [NotificationController],
   providers: [
     NotificationService,
@@ -32,3 +33,4 @@ import { SMTPProvider } from '../../common/providres/smtp.provider';
   ],
 })
 export class NotificationModule {}
+
