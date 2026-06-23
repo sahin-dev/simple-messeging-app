@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Inject, Optional, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, Inject, Optional, NotFoundException, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { SendMessageDto } from "./dtos/send-message.dto";
 import { GetAllMessagesDto } from "./dtos/get-all-messages.dto";
@@ -7,13 +7,16 @@ import { SocketGateway } from "./gateway/chat.gateway";
 import { RatingService } from "../rating/rating.service";
 import { SendFileDto } from "./dtos/send-file.dto";
 import { MessageType } from "generated/prisma/enums";
+import { NotificationDispatcherService } from "../notification/services/notification-dispatcher.service";
 
 @Injectable()
 export class ChatService {
+    private readonly logger = new Logger(ChatService.name);
 
     constructor(
         private readonly prismaService: PrismaService,
         private readonly ratingService: RatingService,
+        private readonly notificationDispatcherService: NotificationDispatcherService,
         @Optional()
         @Inject("SOCKET_ROOM_SERVICE")
         private readonly socketRoomService?: any,
@@ -85,6 +88,10 @@ export class ChatService {
             data: {
                 updatedAt: new Date()
             }
+        });
+
+        this.notificationDispatcherService.dispatchChatNotification(createdChat, sendMessageDto.receiver_id).catch(err => {
+            this.logger.error("Failed to dispatch chat notification:", err);
         });
 
         return createdChat
@@ -177,6 +184,10 @@ export class ChatService {
             // Send confirmation to sender
             server.to(senderRoom).emit("message-sent", { ...createdChat, is_mine: true });
         }
+
+        this.notificationDispatcherService.dispatchChatNotification(createdChat, sendFileDto.receiver_id).catch(err => {
+            this.logger.error("Failed to dispatch chat notification:", err);
+        });
 
         return createdChat;
     }

@@ -1,13 +1,18 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRatingDto } from './dtos/create-rating.dto';
 import { UpdateRatingStatusDto } from './dtos/update-rating-status.dto';
 import { RatingStatus } from 'generated/prisma/enums';
+import { NotificationDispatcherService } from '../notification/services/notification-dispatcher.service';
 
 @Injectable()
 export class RatingService {
+  private readonly logger = new Logger(RatingService.name);
   
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly notificationDispatcherService: NotificationDispatcherService,
+  ) {}
 
   async createRating(userId: string, createRatingDto: CreateRatingDto) {
     if (userId === createRatingDto.ratee_id) {
@@ -40,7 +45,7 @@ export class RatingService {
       throw new BadRequestException('Rating must be between 1 and 5');
     }
 
-    return this.prismaService.userRating.create({
+    const rating = await this.prismaService.userRating.create({
       data: {
         rater_id: userId,
         ratee_id: createRatingDto.ratee_id,
@@ -65,6 +70,18 @@ export class RatingService {
         },
       },
     });
+
+    const raterName = rating.rater?.nick_name || 'A user';
+    const rateeName = rating.ratee?.nick_name || 'another user';
+    this.notificationDispatcherService.dispatchAdminNotification(
+      'New Rating Pending Mod',
+      `${raterName} submitted a ${rating.rating}-star rating for ${rateeName} and needs moderation.`,
+      { ratingId: rating.id }
+    ).catch((err) => {
+      this.logger.error(`Failed to notify admins of new rating: ${err.message}`);
+    });
+
+    return rating;
   }
 
   async updateRatingStatus(ratingId: string, updateRatingStatusDto: UpdateRatingStatusDto) {
@@ -76,7 +93,7 @@ export class RatingService {
       throw new NotFoundException('Rating not found');
     }
 
-    return this.prismaService.userRating.update({
+    const updatedRating = await this.prismaService.userRating.update({
       where: { id: ratingId },
       data: {
         status: updateRatingStatusDto.status,
@@ -96,6 +113,14 @@ export class RatingService {
         },
       },
     });
+
+    if (updateRatingStatusDto.status === RatingStatus.PUBLISHED) {
+      this.notificationDispatcherService.dispatchRatingNotification(updatedRating).catch((err) => {
+        this.logger.error(`Failed to dispatch rating notification: ${err.message}`);
+      });
+    }
+
+    return updatedRating;
   }
 
   async getRatingsForUser(userId: string, status?: RatingStatus, page: number = 1, limit: number = 10) {
@@ -329,6 +354,16 @@ export class RatingService {
           },
         },
       },
+    });
+
+    const raterName = updatedRating.rater?.nick_name || 'A user';
+    const rateeName = updatedRating.ratee?.nick_name || 'another user';
+    this.notificationDispatcherService.dispatchAdminNotification(
+      'Updated Rating Pending Mod',
+      `${raterName} updated their rating for ${rateeName} to ${updatedRating.rating} stars, which needs moderation.`,
+      { ratingId: updatedRating.id }
+    ).catch((err) => {
+      this.logger.error(`Failed to notify admins of updated rating: ${err.message}`);
     });
 
     return updatedRating;

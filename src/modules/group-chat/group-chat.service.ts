@@ -10,6 +10,7 @@ import { User } from 'generated/prisma/browser';
 import { DefaultArgs } from '@prisma/client/runtime/library';
 import { UserDelegate, UserWhereInput } from 'generated/prisma/models';
 import { MessageType } from 'generated/prisma/enums';
+import { NotificationDispatcherService } from '../notification/services/notification-dispatcher.service';
 import * as fs from 'fs';
 
 @Injectable()
@@ -18,6 +19,7 @@ export class GroupChatService {
 
   constructor(
     private readonly prismaService: PrismaService,
+    private readonly notificationDispatcherService: NotificationDispatcherService,
     @Optional()
     @Inject('SOCKET_ROOM_SERVICE')
     private readonly socketRoomService?: any,
@@ -92,9 +94,13 @@ export class GroupChatService {
     });
 
     // Update group chat room updatedAt
-    await this.prismaService.groupChatRoom.update({
+    const groupChatRoom = await this.prismaService.groupChatRoom.update({
       where: { id: sendGroupMessageDto.groupChatRoomId },
       data: { updatedAt: new Date() },
+    });
+
+    this.notificationDispatcherService.dispatchGroupChatNotification(groupChat, groupChatRoom).catch((err) => {
+      this.logger.error(`Failed to dispatch group chat notification: ${err.message}`);
     });
 
     return groupChat;
@@ -140,9 +146,13 @@ export class GroupChatService {
     });
 
     // Update group chat room updatedAt
-    await this.prismaService.groupChatRoom.update({
+    const groupChatRoom = await this.prismaService.groupChatRoom.update({
       where: { id: sendGroupFileDto.groupChatRoomId },
       data: { updatedAt: new Date() },
+    });
+
+    this.notificationDispatcherService.dispatchGroupChatNotification(groupChat, groupChatRoom).catch((err) => {
+      this.logger.error(`Failed to dispatch group chat file notification: ${err.message}`);
     });
 
     // Broadcast the message to all group members via WebSocket
@@ -331,13 +341,17 @@ export class GroupChatService {
     });
 
     // Update member count
-    await this.prismaService.groupChatRoom.update({
+    const groupRoom = await this.prismaService.groupChatRoom.update({
       where: { id: groupChatRoomId },
       data: {
         group_members_count: {
           increment: 1,
         },
       },
+    });
+
+    this.notificationDispatcherService.dispatchGroupAddedNotification(groupChatRoomId, groupRoom.name, newMemberId).catch((err) => {
+      this.logger.error(`Failed to dispatch group added notification for member ${newMemberId}: ${err.message}`);
     });
 
     return newMember;
@@ -407,13 +421,19 @@ export class GroupChatService {
     });
 
     // Update member count
-    await this.prismaService.groupChatRoom.update({
+    const groupRoom = await this.prismaService.groupChatRoom.update({
       where: { id: groupChatRoomId },
       data: {
         group_members_count: {
           increment: newMembersToAdd.length,
         },
       },
+    });
+
+    newMembersToAdd.forEach((memberId) => {
+      this.notificationDispatcherService.dispatchGroupAddedNotification(groupChatRoomId, groupRoom.name, memberId).catch((err) => {
+        this.logger.error(`Failed to dispatch group added notification for member ${memberId}: ${err.message}`);
+      });
     });
 
     return {
@@ -460,7 +480,7 @@ export class GroupChatService {
     });
 
     // Update member count
-    await this.prismaService.groupChatRoom.update({
+    const groupRoom = await this.prismaService.groupChatRoom.update({
       where: { id: groupChatRoomId },
       data: {
         group_members_count: {
@@ -468,6 +488,12 @@ export class GroupChatService {
         },
       },
     });
+
+    if (userId !== memberId) {
+      this.notificationDispatcherService.dispatchGroupRemovedNotification(groupChatRoomId, groupRoom.name, memberId).catch((err) => {
+        this.logger.error(`Failed to dispatch group removed notification for member ${memberId}: ${err.message}`);
+      });
+    }
 
     // Remove user from socket.io room if service is available
     if (this.socketRoomService) {
