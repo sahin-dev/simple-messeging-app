@@ -154,6 +154,7 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
     @SubscribeMessage(SUBSCRIBED_EVENTS.MESSAGE_RECEIVED)
     async handleMesssageDelivery(@MessageBody() acknowledgements: MessageAcknowledgementDto, @ConnectedSocket() client: Socket) {
+        console.log("message received", acknowledgements)
         try {
             if (acknowledgements && Array.isArray(acknowledgements.messageIds)) {
                 acknowledgements.messageIds.forEach(async (messageId) => {
