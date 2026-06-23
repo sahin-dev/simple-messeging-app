@@ -821,4 +821,162 @@ export class NotificationDispatcherService {
       );
     }
   }
+
+  /**
+   * Dispatch a notification to all admins in the system
+   */
+  async dispatchAdminNotification(
+    title: string,
+    message: string,
+    payload?: any,
+  ): Promise<void> {
+    try {
+      this.logger.log(`Dispatching admin notification: "${title}"`);
+
+      // Find all admins
+      const admins = await this.prismaService.user.findMany({
+        where: {
+          role: 'ADMIN',
+          is_deleted: false,
+        },
+      });
+
+      this.logger.log(`Found ${admins.length} admin users to notify`);
+
+      for (const admin of admins) {
+        try {
+          const isEnabled = await this.notificationPreferenceService.isNotificationEnabled(
+            admin.id,
+            'system',
+          );
+
+          if (!isEnabled) {
+            continue;
+          }
+
+          // Create notification event (SYSTEM_NOTIFICATION is mapped to notifications requiring review/mod)
+          await this.notificationEventService.createEvent({
+            userId: admin.id,
+            eventType: NotificationEventTypeEnum.SYSTEM_NOTIFICATION,
+            title,
+            message,
+            payload,
+          });
+
+          // Send push notification if token exists
+          if (admin.fcm_token) {
+            await this.sendPushNotification(admin.fcm_token, title, message);
+          }
+        } catch (err) {
+          this.logger.error(`Failed to send admin notification to admin user ${admin.id}:`, err);
+        }
+      }
+    } catch (err) {
+      this.logger.error('Failed to dispatch admin notification:', err);
+    }
+  }
+
+  /**
+   * Dispatch group added notification when a user is added to a group
+   */
+  async dispatchGroupAddedNotification(
+    groupChatRoomId: string,
+    groupRoomName: string,
+    userId: string,
+  ): Promise<void> {
+    try {
+      this.logger.log(`Dispatching group added notification for user ${userId} and room ${groupChatRoomId}`);
+
+      const isEnabled = await this.notificationPreferenceService.isNotificationEnabled(
+        userId,
+        'groupChat',
+      );
+
+      if (!isEnabled) {
+        return;
+      }
+
+      const user = await this.prismaService.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        return;
+      }
+
+      const title = 'Added to Group Chat';
+      const message = `You have been added to the group chat "${groupRoomName}"`;
+
+      await this.notificationEventService.createEvent({
+        userId,
+        eventType: NotificationEventTypeEnum.GROUP_CHAT_ADDED,
+        title,
+        message,
+        payload: {
+          groupChatRoomId,
+          groupRoomName,
+        },
+      });
+
+      if (user.fcm_token) {
+        await this.sendPushNotification(user.fcm_token, title, message);
+      }
+
+      this.logger.log(`Sent group added notification to user ${userId}`);
+    } catch (err) {
+      this.logger.error(`Failed to dispatch group added notification for user ${userId}:`, err);
+    }
+  }
+
+  /**
+   * Dispatch group removed notification when a user is removed from a group
+   */
+  async dispatchGroupRemovedNotification(
+    groupChatRoomId: string,
+    groupRoomName: string,
+    userId: string,
+  ): Promise<void> {
+    try {
+      this.logger.log(`Dispatching group removed notification for user ${userId} and room ${groupChatRoomId}`);
+
+      const isEnabled = await this.notificationPreferenceService.isNotificationEnabled(
+        userId,
+        'groupChat',
+      );
+
+      if (!isEnabled) {
+        return;
+      }
+
+      const user = await this.prismaService.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        return;
+      }
+
+      const title = 'Removed from Group Chat';
+      const message = `You have been removed from the group chat "${groupRoomName}"`;
+
+      await this.notificationEventService.createEvent({
+        userId,
+        eventType: NotificationEventTypeEnum.GROUP_CHAT_REMOVED,
+        title,
+        message,
+        payload: {
+          groupChatRoomId,
+          groupRoomName,
+        },
+      });
+
+      if (user.fcm_token) {
+        await this.sendPushNotification(user.fcm_token, title, message);
+      }
+
+      this.logger.log(`Sent group removed notification to user ${userId}`);
+    } catch (err) {
+      this.logger.error(`Failed to dispatch group removed notification for user ${userId}:`, err);
+    }
+  }
 }

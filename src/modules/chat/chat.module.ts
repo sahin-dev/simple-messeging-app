@@ -7,10 +7,11 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { GroupChatModule } from '../group-chat/group-chat.module';
 import { RatingModule } from '../rating/rating.module';
 import { SocketRoomService } from './services/socket-room.service';
+import { NotificationModule } from '../notification/notification.module';
 
 
 @Module({
-    imports:[forwardRef(() => UserModule), PrismaModule, GroupChatModule, RatingModule],
+    imports:[forwardRef(() => UserModule), PrismaModule, GroupChatModule, RatingModule, NotificationModule],
     controllers:[ChatController],
     providers:[
       ChatService, 

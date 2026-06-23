@@ -1,13 +1,17 @@
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadUserDocumentDto, UpdateUserDocumentDto } from '../dtos/user-document.dto';
+import { NotificationDispatcherService } from '../../notification/services/notification-dispatcher.service';
 
 @Injectable()
 export class UserDocumentService {
   private readonly logger = new Logger(UserDocumentService.name);
   private readonly EXPIRY_WARNING_DAYS = 30; // Send notification if expiry is within 30 days
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly notificationDispatcherService: NotificationDispatcherService,
+  ) {}
 
   /**
    * Upload a new user document
@@ -61,6 +65,15 @@ export class UserDocumentService {
         data: { is_vehicle_ownership_document_submitted: true },
       });
     }
+
+    const uploaderName = user.nick_name || user.name || 'A user';
+    this.notificationDispatcherService.dispatchAdminNotification(
+      'New Document Uploaded',
+      `${uploaderName} uploaded a new ${document.document_type} document for verification.`,
+      { documentId: document.id, userId }
+    ).catch((err) => {
+      this.logger.error(`Failed to notify admins of document upload: ${err.message}`);
+    });
 
     return this.formatDocumentResponse(document);
   }
@@ -173,6 +186,16 @@ export class UserDocumentService {
     const updatedDocument = await this.prismaService.userDocument.update({
       where: { id: documentId },
       data: updateData,
+    });
+
+    const owner = await this.prismaService.user.findUnique({ where: { id: userId } });
+    const ownerName = owner?.nick_name || owner?.name || 'A user';
+    this.notificationDispatcherService.dispatchAdminNotification(
+      'Document Updated',
+      `${ownerName} updated their ${updatedDocument.document_type} document.`,
+      { documentId, userId }
+    ).catch((err) => {
+      this.logger.error(`Failed to notify admins of document update: ${err.message}`);
     });
 
     return this.formatDocumentResponse(updatedDocument);
@@ -399,6 +422,20 @@ export class UserDocumentService {
         data: { is_vehicle_verified: isVerified },
       });
     }
+
+    const statusText = isVerified ? 'verified' : 'rejected';
+    const message = isVerified
+      ? `Your ${document.document_type} document has been verified successfully.`
+      : `Your ${document.document_type} document verification failed/was rejected.`;
+    
+    this.notificationDispatcherService.dispatchSystemNotification(
+      [document.user_id],
+      `Document Verification ${isVerified ? 'Success' : 'Failed'}`,
+      message,
+      { documentId, documentType: document.document_type, status: statusText }
+    ).catch((err) => {
+      this.logger.error(`Failed to dispatch document verification notification to user ${document.user_id}: ${err.message}`);
+    });
 
     return this.formatDocumentResponse(updatedDocument);
   }
