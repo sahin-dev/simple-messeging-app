@@ -160,8 +160,10 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
                 acknowledgements.messageIds.forEach(async (messageId) => {
                     try {
                         const chat = await this.chatService.acknowledgeMessageDelivery(messageId)
-                        // Notify sender that message was delivered
-                        this.server.to(this.generateUserRoomId(chat.sender_id)).emit(EMIT_EVENTS.MESSAGE_DELIVERED, chat)
+                        if (chat) {
+                            // Notify sender that message was delivered
+                            this.server.to(this.generateUserRoomId(chat.sender_id)).emit(EMIT_EVENTS.MESSAGE_DELIVERED, chat)
+                        }
                     } catch (innerErr: any) {
                         console.error(`Error acknowledging message ${messageId}:`, innerErr);
                     }

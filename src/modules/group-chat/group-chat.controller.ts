@@ -1,7 +1,6 @@
 import { Controller, Post, Get, Put, Delete, Body, Param, Query, Req, HttpCode, Patch, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { GroupChatService } from './group-chat.service';
 import { CreateGroupChatRoomDto } from './dtos/create-group-chat-room.dto';
-import { SendGroupMessageDto } from './dtos/send-group-message.dto';
 import { SendGroupFileDto } from './dtos/send-group-file.dto';
 import { UpdateGroupChatRoomDto } from './dtos/update-group-chat-room.dto';
 import { AddGroupMembersDto } from './dtos/add-group-members.dto';
@@ -41,16 +40,11 @@ export class GroupChatController {
     return this.groupChatService.createGroupChatRoom(payload.id, createGroupChatRoomDto, file);
   }
 
-  @Post('message')
-  @HttpCode(201)
-  @ResponseMessage('Group message sent successfully')
-  async sendGroupMessage(
-    @Req() request: Request,
-    @Body() sendGroupMessageDto: SendGroupMessageDto,
-  ) {
-    const payload = request['payload'] as TokenPayload;
-    return this.groupChatService.sendGroupMessage(payload.id, sendGroupMessageDto);
-  }
+  /**
+   * NOTE: Group text messages are sent exclusively via WebSocket (SEND_GROUP_MESSAGE event).
+   * Using the HTTP endpoint in parallel with the socket causes duplicate DB saves
+   * and double push notifications. See SocketGateway.handleSendGroupMessage.
+   */
 
   @Post('message/file')
   @HttpCode(201)

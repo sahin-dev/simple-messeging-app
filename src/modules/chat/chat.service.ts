@@ -9,6 +9,8 @@ import { SendFileDto } from "./dtos/send-file.dto";
 import { MessageType } from "generated/prisma/enums";
 import { NotificationDispatcherService } from "../notification/services/notification-dispatcher.service";
 
+export const EPHEMERAL_ID_PREFIX = '000000000000';
+
 @Injectable()
 export class ChatService {
     private readonly logger = new Logger(ChatService.name);
@@ -21,6 +23,10 @@ export class ChatService {
         @Inject("SOCKET_ROOM_SERVICE")
         private readonly socketRoomService?: any,
     ) { }
+
+    private generateEphemeralId(): string {
+        return EPHEMERAL_ID_PREFIX + Date.now().toString(16).padStart(12, '0');
+    }
 
     /**
      * Create a new message
@@ -66,7 +72,7 @@ export class ChatService {
         if (isReceiverOnline) {
             // User is online - build an in-memory message object without saving to DB
             const ephemeralChat = {
-                id: `ephemeral-${Date.now()}`,
+                id: this.generateEphemeralId(),
                 chatRoom_id: room.id,
                 sender_id: userId,
                 receiver_id: sendMessageDto.receiver_id,
@@ -175,7 +181,7 @@ export class ChatService {
             this.logger.log(`Receiver ${sendFileDto.receiver_id} is online — skipping DB save for file message`);
 
             const ephemeralChat = {
-                id: `ephemeral-${Date.now()}`,
+                id: this.generateEphemeralId(),
                 chatRoom_id: room.id,
                 sender_id: userId,
                 receiver_id: sendFileDto.receiver_id,
@@ -587,6 +593,9 @@ export class ChatService {
      * @returns 
      */
     async acknowledgeMessageDelivery(messageId: string) {
+        if (messageId.startsWith(EPHEMERAL_ID_PREFIX)) {
+            return null;
+        }
         const chat = await this.prismaService.chat.update({
             where: { id: messageId },
             data: { is_delivered: true, is_read: true }
