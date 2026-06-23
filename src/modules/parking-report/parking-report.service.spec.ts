@@ -16,6 +16,7 @@ describe('ParkingReportService - Simplified Constraints', () => {
     parkingSpot: {
       findUnique: jest.fn(),
       update: jest.fn(),
+      create: jest.fn(),
     },
     parkingReport: {
       findFirst: jest.fn(),
@@ -179,6 +180,68 @@ describe('ParkingReportService - Simplified Constraints', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('createParkingSpot', () => {
+    it('should create a parking spot with the specified cost when disabled_facility is false', async () => {
+      const dto = {
+        latitude: 10.0,
+        longitude: 20.0,
+        parking_cost: 'PAID' as any,
+        electric_charging: false,
+        disabled_facility: false,
+        disabled_facility_location: 'NONE' as any,
+      };
+
+      prismaService.parkingSpot.create.mockImplementation((args: any) => ({
+        id: 'spot123',
+        ...args.data,
+      }));
+
+      const result = await service.createParkingSpot('user123', dto);
+
+      expect(result.parking_cost).toBe('PAID');
+      expect(prismaService.parkingSpot.create).toHaveBeenCalledWith({
+        data: {
+          latitude: 10.0,
+          longitude: 20.0,
+          parking_cost: 'PAID',
+          electric_charging: false,
+          disabled_facility: false,
+          disabled_facility_location: 'NONE',
+        },
+      });
+    });
+
+    it('should force parking_cost to FREE when disabled_facility is true', async () => {
+      const dto = {
+        latitude: 10.0,
+        longitude: 20.0,
+        parking_cost: 'PAID' as any,
+        electric_charging: false,
+        disabled_facility: true,
+        disabled_facility_location: 'NONE' as any,
+      };
+
+      prismaService.parkingSpot.create.mockImplementation((args: any) => ({
+        id: 'spot123',
+        ...args.data,
+      }));
+
+      const result = await service.createParkingSpot('user123', dto);
+
+      expect(result.parking_cost).toBe('FREE');
+      expect(prismaService.parkingSpot.create).toHaveBeenCalledWith({
+        data: {
+          latitude: 10.0,
+          longitude: 20.0,
+          parking_cost: 'FREE',
+          electric_charging: false,
+          disabled_facility: true,
+          disabled_facility_location: 'NONE',
+        },
+      });
     });
   });
 
