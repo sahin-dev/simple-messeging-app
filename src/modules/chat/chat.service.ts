@@ -9,8 +9,6 @@ import { SendFileDto } from "./dtos/send-file.dto";
 import { MessageType } from "generated/prisma/enums";
 import { NotificationDispatcherService } from "../notification/services/notification-dispatcher.service";
 
-export const EPHEMERAL_ID_PREFIX = '000000000000';
-
 @Injectable()
 export class ChatService {
     private readonly logger = new Logger(ChatService.name);
@@ -23,10 +21,6 @@ export class ChatService {
         @Inject("SOCKET_ROOM_SERVICE")
         private readonly socketRoomService?: any,
     ) { }
-
-    private generateEphemeralId(): string {
-        return EPHEMERAL_ID_PREFIX + Date.now().toString(16).padStart(12, '0');
-    }
 
     /**
      * Create a new message
@@ -63,36 +57,6 @@ export class ChatService {
         }
 
         const room = await this.createChatRoomIfNotExists(userId, sendMessageDto.receiver_id);
-
-        // Check if receiver is online - if so, skip DB save
-        const isReceiverOnline = this.socketRoomService
-            ? await this.socketRoomService.isUserConnected(sendMessageDto.receiver_id)
-            : false;
-
-        if (isReceiverOnline) {
-            // User is online - build an in-memory message object without saving to DB
-            const ephemeralChat = {
-                id: this.generateEphemeralId(),
-                chatRoom_id: room.id,
-                sender_id: userId,
-                receiver_id: sendMessageDto.receiver_id,
-                message: sendMessageDto.message,
-                type: 'TEXT',
-                is_read: false,
-                is_delivered: false,
-                file_url: null,
-                file_name: null,
-                file_size: null,
-                file_mime_type: null,
-                sender: null,
-                receiver: null,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            };
-
-            this.logger.log(`Receiver ${sendMessageDto.receiver_id} is online — skipping DB save for message`);
-            return ephemeralChat;
-        }
 
         const createdChat = await this.prismaService.chat.create({
             data: {
@@ -171,43 +135,6 @@ export class ChatService {
         }
 
         const room = await this.createChatRoomIfNotExists(userId, sendFileDto.receiver_id);
-
-        // Check if receiver is online - if so, skip DB save
-        const isReceiverOnline = this.socketRoomService
-            ? await this.socketRoomService.isUserConnected(sendFileDto.receiver_id)
-            : false;
-
-        if (isReceiverOnline) {
-            this.logger.log(`Receiver ${sendFileDto.receiver_id} is online — skipping DB save for file message`);
-
-            const ephemeralChat = {
-                id: this.generateEphemeralId(),
-                chatRoom_id: room.id,
-                sender_id: userId,
-                receiver_id: sendFileDto.receiver_id,
-                message: sendFileDto.message || file.originalname,
-                type: 'FILE',
-                is_read: false,
-                is_delivered: false,
-                file_url: `/uploads/chats/${file.filename}`,
-                file_name: file.originalname,
-                file_size: file.size,
-                file_mime_type: file.mimetype,
-                sender: null,
-                receiver: null,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            };
-
-            // Emit live event via websocket for online receiver
-            if (this.socketRoomService && this.socketRoomService.server) {
-                const server = this.socketRoomService.server;
-                server.to(`user-${sendFileDto.receiver_id}`).emit("new-message", { ...ephemeralChat, is_mine: false });
-                server.to(`user-${userId}`).emit("message-sent", { ...ephemeralChat, is_mine: true });
-            }
-
-            return ephemeralChat;
-        }
 
         const createdChat = await this.prismaService.chat.create({
             data: {
@@ -593,9 +520,6 @@ export class ChatService {
      * @returns 
      */
     async acknowledgeMessageDelivery(messageId: string) {
-        if (messageId.startsWith(EPHEMERAL_ID_PREFIX)) {
-            return null;
-        }
         const chat = await this.prismaService.chat.update({
             where: { id: messageId },
             data: { is_delivered: true, is_read: true }

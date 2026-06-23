@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ChatService, EPHEMERAL_ID_PREFIX } from './chat.service';
+import { ChatService } from './chat.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RatingService } from '../rating/rating.service';
 import { NotificationDispatcherService } from '../notification/services/notification-dispatcher.service';
@@ -75,18 +75,17 @@ describe('ChatService', () => {
       mockPrismaService.chatRoom.findFirst.mockResolvedValue({ id: 'room123', user1_id: senderId, user2_id: receiverId });
     });
 
-    it('should create an ephemeral message and skip DB write when receiver is online', async () => {
+    it('should save message to DB and dispatch notification when receiver is online', async () => {
       mockSocketRoomService.isUserConnected.mockResolvedValue(true);
+      const mockSavedChat = { id: 'dbMessage123', chatRoom_id: 'room123', sender_id: senderId, receiver_id: receiverId, message: 'Hello!' };
+      prismaService.chat.create.mockResolvedValue(mockSavedChat);
 
       const result = await service.createMessage(senderId, sendMessageDto);
 
-      expect(mockSocketRoomService.isUserConnected).toHaveBeenCalledWith(receiverId);
-      expect(prismaService.chat.create).not.toHaveBeenCalled();
-      expect(prismaService.chatRoom.update).not.toHaveBeenCalled();
-      expect(notificationDispatcherService.dispatchChatNotification).not.toHaveBeenCalled();
-      expect(result.id.startsWith(EPHEMERAL_ID_PREFIX)).toBe(true);
-      expect(result.message).toBe('Hello!');
-      expect(result.chatRoom_id).toBe('room123');
+      expect(prismaService.chat.create).toHaveBeenCalled();
+      expect(prismaService.chatRoom.update).toHaveBeenCalled();
+      expect(notificationDispatcherService.dispatchChatNotification).toHaveBeenCalledWith(mockSavedChat, receiverId);
+      expect(result).toEqual(mockSavedChat);
     });
 
     it('should save message to DB and dispatch notification when receiver is offline', async () => {
@@ -96,7 +95,6 @@ describe('ChatService', () => {
 
       const result = await service.createMessage(senderId, sendMessageDto);
 
-      expect(mockSocketRoomService.isUserConnected).toHaveBeenCalledWith(receiverId);
       expect(prismaService.chat.create).toHaveBeenCalled();
       expect(prismaService.chatRoom.update).toHaveBeenCalled();
       expect(notificationDispatcherService.dispatchChatNotification).toHaveBeenCalledWith(mockSavedChat, receiverId);
@@ -105,15 +103,7 @@ describe('ChatService', () => {
   });
 
   describe('acknowledgeMessageDelivery', () => {
-    it('should return null and not hit DB if messageId is ephemeral', async () => {
-      const ephemeralId = EPHEMERAL_ID_PREFIX + '1234567890ab';
-      const result = await service.acknowledgeMessageDelivery(ephemeralId);
-
-      expect(result).toBeNull();
-      expect(prismaService.chat.update).not.toHaveBeenCalled();
-    });
-
-    it('should update chat record in DB if messageId is a regular MongoId', async () => {
+    it('should update chat record in DB if messageId is provided', async () => {
       const regularId = '60c72b2f9b1d8e256c000001';
       const mockUpdatedChat = { id: regularId, is_delivered: true, is_read: true };
       prismaService.chat.update.mockResolvedValue(mockUpdatedChat);
