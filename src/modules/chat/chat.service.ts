@@ -266,6 +266,7 @@ export class ChatService {
                                 nick_name: true,
                                 licence_id: true,
                                 avatar: true,
+                                is_vehicle_verified: true
                             },
 
                         },
@@ -275,6 +276,7 @@ export class ChatService {
                                 nick_name: true,
                                 licence_id: true,
                                 avatar: true,
+                                is_vehicle_verified: true
                             }
                         },
                         chats: {
