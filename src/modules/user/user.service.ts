@@ -674,7 +674,11 @@ export class UserService {
         }
 
         const rating = await this.ratingService.getAverageRatingForUser(scannedUserId)
-        Object.assign(scannedUser, { rating:rating.averageRating })
+        Object.assign(scannedUser, { 
+            rating: rating.averageRating,
+            totalRating: rating.totalRatings,
+            totalRatings: rating.totalRatings
+        })
 
         if (scannedUser.is_blocked) {
             throw new BadRequestException("This user account has been blocked");
@@ -719,7 +723,9 @@ export class UserService {
 
         return {
             ...user,
-            rating: ratingData.averageRating
+            rating: ratingData.averageRating,
+            totalRating: ratingData.totalRatings,
+            totalRatings: ratingData.totalRatings
         };
     }
 

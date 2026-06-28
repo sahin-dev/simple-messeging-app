@@ -176,7 +176,9 @@ export class AuthService {
 
         return {
             ...userDetails,
-            rating: ratingInfo.averageRating
+            rating: ratingInfo.averageRating,
+            totalRating: ratingInfo.totalRatings,
+            totalRatings: ratingInfo.totalRatings
         };
     }
 

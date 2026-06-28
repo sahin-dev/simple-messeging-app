@@ -385,7 +385,11 @@ export class ChatService {
             const isBlockedMe = await this.prismaService.blockList.findFirst({ where: { user_id: otherUser.id, blocked_user_id: userId } })
             const rating = await this.ratingService.getAverageRatingForUser(otherUser.id)
 
-            Object.assign(otherUser, { rating: rating.averageRating })
+            Object.assign(otherUser, {
+                rating: rating.averageRating,
+                totalRating: rating.totalRatings,
+                totalRatings: rating.totalRatings
+            })
 
             return {
                 ...room,
@@ -596,7 +600,9 @@ export class ChatService {
             avatar: owner.avatar,
             licence_id: owner.licence_id,
             is_blocked: owner.is_blocked,
-            rating: ratingData.averageRating
+            rating: ratingData.averageRating,
+            totalRating: ratingData.totalRatings,
+            totalRatings: ratingData.totalRatings
         };
 
         if (existingRoom) {
