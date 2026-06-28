@@ -22,6 +22,8 @@ import { BlacklistedwordModule } from './modules/blacklistedword/blacklistedword
 import mailerConfig from './config/mailer.config';
 import firebaseConfig from './config/firebase.config';
 
+import { HelpSupportModule } from './modules/help-support/help-support.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [jwtConfig, mailerConfig, firebaseConfig] }),
@@ -40,6 +42,7 @@ import firebaseConfig from './config/firebase.config';
     NotificationModule,
     BlacklistedwordModule,
     UserDocumentModule,
+    HelpSupportModule,
   ],
   controllers: [AppController],
   providers: [AppService, ConfigService],
