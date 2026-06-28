@@ -60,6 +60,7 @@ model User {
   userRatingsReceived UserRating[]          @relation("ratee")
   parkingReports      ParkingReport[]
   documents           UserDocument[]
+  supportTickets      SupportTicket[]
 
   notificationEvents         NotificationEvent[]
   notificationPreference     NotificationPreference?
@@ -506,4 +507,17 @@ enum VehicleType {
   CITY_CAR
   E_SCOOTER
   OTHER
+}
+
+model SupportTicket {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject     String
+  description String
+  adminReply  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("support_tickets")
 }
