@@ -73,6 +73,12 @@ export class UserResponseDto {
     @Expose()
     rating?: number
 
+    @Expose()
+    totalRating?: number
+
+    @Expose()
+    totalRatings?: number
+
     @Expose({
         groups: ['admin']
     })
@@ -107,4 +113,10 @@ export class UserResponseDto {
 
     @Expose()
     is_vehicle_ownership_document_submitted: boolean
+
+    @Expose()
+    country?: string
+
+    @Expose()
+    city?: string
 }

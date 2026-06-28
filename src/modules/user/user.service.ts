@@ -295,6 +295,8 @@ export class UserService {
             vehicle_type: updateUserDto.vehicle_type !== undefined ? updateUserDto.vehicle_type : user.vehicle_type,
             vehicle_model: updateUserDto.vehicle_model !== undefined ? updateUserDto.vehicle_model : user.vehicle_model,
             vehicle_color: updateUserDto.vehicle_color !== undefined ? updateUserDto.vehicle_color : user.vehicle_color,
+            country: updateUserDto.country !== undefined ? updateUserDto.country : user.country,
+            city: updateUserDto.city !== undefined ? updateUserDto.city : user.city,
         };
 
         const updatedUser = await this.prismaService.user.update({
