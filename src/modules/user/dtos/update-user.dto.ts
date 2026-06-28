@@ -25,4 +25,12 @@ export class UpdateUserDto {
     @IsString()
     @IsOptional()
     vehicle_color?: string;
+
+    @IsString()
+    @IsOptional()
+    country?: string;
+
+    @IsString()
+    @IsOptional()
+    city?: string;
 }

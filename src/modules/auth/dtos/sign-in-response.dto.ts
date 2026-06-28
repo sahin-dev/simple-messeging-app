@@ -39,5 +39,9 @@ export class SignInResponseDto {
     @Expose()
     is_vehicle_ownership_document_submitted: boolean
 
+    @Expose()
+    country?: string
 
+    @Expose()
+    city?: string
 }
