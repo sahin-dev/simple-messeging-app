@@ -26,6 +26,11 @@ export class DocumentExpiryCheckService {
 
       for (const doc of expiringDocuments) {
         try {
+          if (!doc.expiry_date) {
+            this.logger.warn(`Skipping document ${doc.id} because it has no expiry date`);
+            continue;
+          }
+
           const daysUntilExpiry = this.calculateDaysUntilExpiry(doc.expiry_date);
 
           // Send notification only if user has FCM token and is not already notified
@@ -102,7 +107,11 @@ export class DocumentExpiryCheckService {
   /**
    * Calculate days until expiry
    */
-  private calculateDaysUntilExpiry(expiryDate: Date): number {
+  private calculateDaysUntilExpiry(expiryDate: Date | null): number {
+    if (!expiryDate) {
+      return -1;
+    }
+
     const now = new Date();
     const diffTime = expiryDate.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));

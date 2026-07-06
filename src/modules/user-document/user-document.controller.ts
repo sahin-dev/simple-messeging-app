@@ -441,7 +441,7 @@ export class UserDocumentController {
         unique_id: doc.unique_id,
         document_type: doc.document_type,
         document_url: doc.document_url,
-        expiry_date: doc.expiry_date.toISOString().split('T')[0],
+        expiry_date: doc.expiry_date ? doc.expiry_date.toISOString().split('T')[0] : null,
         is_verified: doc.is_verified,
         isExpired: doc.isExpired,
         daysUntilExpiry: doc.daysUntilExpiry,
