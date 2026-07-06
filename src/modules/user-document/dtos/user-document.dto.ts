@@ -28,15 +28,15 @@ export class UploadUserDocumentDto {
 
 export class UploadUserDocumentFileDto {
   @IsEnum(DocumentTypeEnum)
-  @IsNotEmpty()
+  @IsOptional()
   document_type: DocumentTypeEnum;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   unique_id: string; // Unique ID for the document, provided by user
 
   @IsDateString()
-  @IsNotEmpty()
+  @IsOptional()
   expiry_date: string; // ISO date string (YYYY-MM-DD)
 
   // file is handled by multer, not by class-validator
