@@ -250,11 +250,15 @@ export class UserDocumentService {
     warningDate.setDate(warningDate.getDate() + this.EXPIRY_WARNING_DAYS);
 
     const expiringDocuments = documents.filter((doc) => {
-      const isExpiring = doc.expiry_date <= warningDate && doc.expiry_date > now;
+      const expiryDate = doc.expiry_date;
+      const isExpiring = expiryDate !== null && expiryDate <= warningDate && expiryDate > now;
       return isExpiring;
     });
 
-    const expiredDocuments = documents.filter((doc) => doc.expiry_date <= now);
+    const expiredDocuments = documents.filter((doc) => {
+      const expiryDate = doc.expiry_date;
+      return expiryDate !== null && expiryDate <= now;
+    });
 
     return {
       expiredDocuments: expiredDocuments.map((doc) => this.formatDocumentResponse(doc)),
@@ -362,7 +366,7 @@ export class UserDocumentService {
       document_url: doc.document_url,
       expiry_date: doc.expiry_date,
       is_verified: doc.is_verified,
-      isExpired: doc.expiry_date <= new Date(),
+      isExpired: this.isDocumentExpired(doc.expiry_date),
       daysUntilExpiry: this.getDaysUntilExpiry(doc.expiry_date),
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
@@ -373,7 +377,11 @@ export class UserDocumentService {
   /**
    * Calculate days until document expiry
    */
-  private getDaysUntilExpiry(expiryDate: Date): number {
+  private getDaysUntilExpiry(expiryDate: Date | null): number {
+    if (!expiryDate) {
+      return -1;
+    }
+
     const now = new Date();
     const diffTime = expiryDate.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -383,7 +391,11 @@ export class UserDocumentService {
   /**
    * Check if document is expired
    */
-  private isDocumentExpired(expiryDate: Date): boolean {
+  private isDocumentExpired(expiryDate: Date | null): boolean {
+    if (!expiryDate) {
+      return false;
+    }
+
     return expiryDate <= new Date();
   }
 
@@ -404,7 +416,13 @@ export class UserDocumentService {
       if (!document.user.licence_id) {
         throw new BadRequestException('User has no license ID in their profile to match');
       }
-      if (document.user.licence_id.trim().toLowerCase() !== document.unique_id.trim().toLowerCase()) {
+
+      const documentUniqueId = document.unique_id?.trim().toLowerCase();
+      if (!documentUniqueId) {
+        throw new BadRequestException('Document unique ID is missing');
+      }
+
+      if (document.user.licence_id.trim().toLowerCase() !== documentUniqueId) {
         throw new BadRequestException(
           `Verification failed: License plate in profile (${document.user.licence_id}) does not match the document unique ID (${document.unique_id})`
         );

@@ -14,12 +14,10 @@ export class UploadUserDocumentDto {
   document_type: DocumentTypeEnum;
 
   @IsString()
-  @IsNotEmpty()
   @IsOptional()
   unique_id: string; // Unique ID for the document, provided by user
 
   @IsDateString()
-  @IsNotEmpty()
   @IsOptional()
   expiry_date: string; // ISO date string (YYYY-MM-DD)
 
@@ -54,7 +52,6 @@ export class UpdateUserDocumentDto {
   document_url?: string;
 
   @IsEnum(DocumentTypeEnum)
-  @IsNotEmpty()
   @IsOptional()
   document_type?: DocumentTypeEnum;
 
@@ -82,10 +79,10 @@ export class UpdateUserDocumentFileDto {
 
 export class UserDocumentResponseDto {
   id: string;
-  unique_id: string;
+  unique_id: string | null;
   document_type: string;
   document_url: string;
-  expiry_date: string; // ISO date string
+  expiry_date: string | null; // ISO date string
   is_verified: boolean;
   isExpired: boolean;
   daysUntilExpiry: number;
