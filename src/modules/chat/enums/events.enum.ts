@@ -2,6 +2,9 @@ export enum EMIT_EVENTS  {
     NEW_MESSAGE = "new-message",
 
     MESSAGE_SENT = "message-sent",
+    MESSAGE_REQUEST = "message-request",
+    MESSAGE_REQUEST_SENT = "message-request-sent",
+    MESSAGE_REQUEST_ACCEPTED = "message-request-accepted",
     MESSAGE_DELIVERED = "message-delivered",
     MESSAGE_READ = "message-read",
 

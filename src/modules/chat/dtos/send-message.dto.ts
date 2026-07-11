@@ -1,4 +1,4 @@
-import { IsMongoId, IsNotEmpty, IsOptional, IsString } from "class-validator";
+import { IsMongoId, IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 import type{ FileBuffer } from "../types/file-buffer.type";
 
 export class SendMessageDto {
@@ -19,6 +19,33 @@ export class SendMessageDto {
     @IsNotEmpty()
     @IsOptional()
     message:string
+
+    @IsMongoId()
+    @IsString()
+    @IsOptional()
+    presetMessageId?: string;
+
+    @IsString()
+    @IsOptional()
+    encryptionType?: string;
+
+    @IsNumber()
+    @IsOptional()
+    encryptionVersion?: number;
+
+    @IsMongoId()
+    @IsString()
+    @IsOptional()
+    senderKeyId?: string;
+
+    @IsMongoId()
+    @IsString()
+    @IsOptional()
+    receiverKeyId?: string;
+
+    @IsString()
+    @IsOptional()
+    nonce?: string;
 
     @IsOptional()
     @IsNotEmpty()

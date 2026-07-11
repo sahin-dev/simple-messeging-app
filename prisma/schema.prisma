@@ -72,6 +72,8 @@ model User {
   parking_notifications_available Int @default(1)
   parking_reports_submitted       Int @default(0)
 
+  deviceKeys UserDeviceKey[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -156,12 +158,19 @@ model Chat {
   receiver_id    String      @db.ObjectId
   message        String
   type           MessageType @default(TEXT)
+  encryptionType String?
+  encryptionVersion Int?
+  senderKeyId    String?     @db.ObjectId
+  receiverKeyId  String?     @db.ObjectId
+  nonce          String?
   is_read        Boolean     @default(false)
   is_delivered   Boolean     @default(false)
   file_url       String?
   file_name      String?
   file_size      Int?
   file_mime_type String?
+  durationSeconds Int?
+  waveform       Json?
 
   chatRoom ChatRoom @relation(fields: [chatRoom_id], references: [id], onDelete: Cascade)
   sender   User     @relation("sender", fields: [sender_id], references: [id], onDelete: Cascade)
@@ -174,13 +183,32 @@ model Chat {
 }
 
 model PresetMessage {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  id         String            @id @default(auto()) @map("_id") @db.ObjectId
   message    String
   message_it String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  type       PresetMessageType @default(CLASSIC)
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
 
   @@map("preset_messages")
+}
+
+model MessageRequest {
+  id           String               @id @default(auto()) @map("_id") @db.ObjectId
+  senderId     String               @db.ObjectId
+  receiverId   String               @db.ObjectId
+  roomId       String?              @db.ObjectId
+  firstMessage String?
+  presetMessageId String?           @db.ObjectId
+  status       MessageRequestStatus @default(PENDING)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId])
+  @@index([status])
+  @@map("message_requests")
 }
 
 model UsefullNumber {
@@ -256,6 +284,33 @@ model SitePolicy {
 enum MessageType {
   TEXT
   FILE
+  VOICE
+}
+
+enum PresetMessageType {
+  ALERT
+  CLASSIC
+}
+
+enum MessageRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+model UserDeviceKey {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId  String
+  publicKey String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@map("user_device_keys")
 }
 
 model Point {
@@ -339,9 +394,121 @@ model ParkingNotificationCredit {
   @@map("parking_notification_credits")
 }
 
+model ParkingHandoff {
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  releaserId  String        @db.ObjectId
+  seekerId    String?       @db.ObjectId
+  spotId      String?       @db.ObjectId
+  latitude    Float
+  longitude   Float
+  status      HandoffStatus @default(AVAILABLE)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  cancelledAt DateTime?
+  occupiedAt  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([releaserId])
+  @@index([seekerId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("parking_handoffs")
+}
+
+model ParkingSearchSession {
+  id        String              @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String              @unique @db.ObjectId
+  latitude  Float
+  longitude Float
+  accuracy  Float?
+  status    ParkingSearchStatus @default(SEARCHING)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@index([status])
+  @@map("parking_search_sessions")
+}
+
+model SavedParkingLocation {
+  id         String            @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String            @unique @db.ObjectId
+  latitude   Float
+  longitude  Float
+  accuracy   Float?
+  confidence Float?
+  source     ParkingSaveSource @default(MANUAL)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@map("saved_parking_locations")
+}
+
+model ParkingSession {
+  id                  String               @id @default(auto()) @map("_id") @db.ObjectId
+  userId              String               @db.ObjectId
+  spotId              String?              @db.ObjectId
+  latitude            Float
+  longitude           Float
+  costType            ParkingCost
+  durationMin         Int?
+  expiresAt           DateTime?
+  expiryWarningSentAt DateTime?
+  status              ParkingSessionStatus @default(ACTIVE)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("parking_sessions")
+}
+
+model ParkingArea {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  name        String?
+  description String?
+  centerLat   Float
+  centerLng   Float
+  polygon     Json
+  parkingCost ParkingCost
+  isActive    Boolean     @default(true)
+  createdById String      @db.ObjectId
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([isActive])
+  @@map("parking_areas")
+}
+
 enum TransactionType {
   EARNED
   CONSUMED
+}
+
+enum HandoffStatus {
+  AVAILABLE
+  ACCEPTED
+  CANCELLED
+  EXPIRED
+  OCCUPIED
+}
+
+enum ParkingSearchStatus {
+  IDLE
+  SEARCHING
+  PARKED
+}
+
+enum ParkingSaveSource {
+  AUTO
+  MANUAL
+}
+
+enum ParkingSessionStatus {
+  ACTIVE
+  EXPIRED
+  LEFT
 }
 
 enum JobType {

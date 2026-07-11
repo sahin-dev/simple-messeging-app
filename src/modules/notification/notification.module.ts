@@ -30,6 +30,7 @@ import { ChatModule } from '../chat/chat.module';
     NotificationDispatcherService,
     GeolocationService,
     SMTPProvider,
+    FireBaseClient,
   ],
 })
 export class NotificationModule {}

@@ -13,6 +13,8 @@ export class PresetMessageService {
       data: {
         message: createPresetMessageDto.message_en,
         message_it: createPresetMessageDto.message_it,
+        type: createPresetMessageDto.type ?? 'CLASSIC',
+        isActive: createPresetMessageDto.isActive ?? true,
       },
     });
   }
@@ -55,7 +57,12 @@ export class PresetMessageService {
 
     return this.prismaService.presetMessage.update({
       where: { id },
-      data: updatePresetMessageDto,
+      data: {
+        ...(updatePresetMessageDto.message_en !== undefined && { message: updatePresetMessageDto.message_en }),
+        ...(updatePresetMessageDto.message_it !== undefined && { message_it: updatePresetMessageDto.message_it }),
+        ...(updatePresetMessageDto.type !== undefined && { type: updatePresetMessageDto.type }),
+        ...(updatePresetMessageDto.isActive !== undefined && { isActive: updatePresetMessageDto.isActive }),
+      },
     });
   }
 

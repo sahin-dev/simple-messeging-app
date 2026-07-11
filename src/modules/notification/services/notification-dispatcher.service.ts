@@ -260,8 +260,13 @@ export class NotificationDispatcherService {
         return;
       }
 
-      const title = `Message from ${chat.sender?.nick_name || chat.sender?.name}`;
-      const message = chat.message.substring(0, 100);
+      const isEncrypted = Boolean(chat.encryptionType);
+      const title = isEncrypted
+        ? 'New message'
+        : `Message from ${chat.sender?.nick_name || chat.sender?.name}`;
+      const message = isEncrypted
+        ? 'You received an encrypted message'
+        : (chat.message || '').substring(0, 100);
 
       // If the receiver is online, skip both the notification event and push notification
       const isOnline = await this.isUserOnline(receiverId);

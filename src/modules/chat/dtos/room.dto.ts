@@ -26,6 +26,21 @@ class LatestMessageDto {
     type: string
 
     @Expose()
+    encryptionType?: string
+
+    @Expose()
+    encryptionVersion?: number
+
+    @Expose()
+    senderKeyId?: string
+
+    @Expose()
+    receiverKeyId?: string
+
+    @Expose()
+    nonce?: string
+
+    @Expose()
     file_url?: string
 
     @Expose()
@@ -36,6 +51,12 @@ class LatestMessageDto {
 
     @Expose()
     file_mime_type?: string
+
+    @Expose()
+    durationSeconds?: number
+
+    @Expose()
+    waveform?: number[]
 
     @Expose({
         name:"createdAt"
