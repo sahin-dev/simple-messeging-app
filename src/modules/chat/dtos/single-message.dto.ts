@@ -35,6 +35,21 @@ export class SingleMessageDto {
     type: string
 
     @Expose()
+    encryptionType?: string
+
+    @Expose()
+    encryptionVersion?: number
+
+    @Expose()
+    senderKeyId?: string
+
+    @Expose()
+    receiverKeyId?: string
+
+    @Expose()
+    nonce?: string
+
+    @Expose()
     file_url?: string
 
     @Expose()
@@ -45,6 +60,12 @@ export class SingleMessageDto {
 
     @Expose()
     file_mime_type?: string
+
+    @Expose()
+    durationSeconds?: number
+
+    @Expose()
+    waveform?: number[]
 
     @Expose({
         name:"createdAt"

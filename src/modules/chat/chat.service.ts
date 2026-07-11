@@ -8,6 +8,8 @@ import { RatingService } from "../rating/rating.service";
 import { SendFileDto } from "./dtos/send-file.dto";
 import { MessageType } from "generated/prisma/enums";
 import { NotificationDispatcherService } from "../notification/services/notification-dispatcher.service";
+import { CreateMessageRequestDto, RegisterDeviceKeyDto } from "./dtos/message-request.dto";
+import { SendVoiceDto } from "./dtos/send-file.dto";
 
 @Injectable()
 export class ChatService {
@@ -56,14 +58,50 @@ export class ChatService {
             throw new BadRequestException("You can not messaged this account")
         }
 
-        const room = await this.createChatRoomIfNotExists(userId, sendMessageDto.receiver_id);
+        const presetMessage = sendMessageDto.presetMessageId
+            ? await this.getActivePresetMessage(sendMessageDto.presetMessageId)
+            : null;
+
+        const finalMessage = sendMessageDto.message || presetMessage?.message;
+
+        if (!finalMessage) {
+            throw new BadRequestException("Message is required");
+        }
+
+        const existingRoom = await this.getChatRoomIfExist(userId, sendMessageDto.receiver_id);
+
+        if (!existingRoom && presetMessage?.type !== 'ALERT') {
+            const request = await this.createOrUpdatePendingMessageRequest(userId, {
+                receiverId: sendMessageDto.receiver_id,
+                firstMessage: finalMessage,
+                presetMessageId: sendMessageDto.presetMessageId,
+            });
+
+            this.notificationDispatcherService.dispatchSystemNotification(
+                [sendMessageDto.receiver_id],
+                'New message request',
+                'Someone wants to send you a message',
+                { messageRequestId: request.id, senderId: userId, type: 'MESSAGE_REQUEST' },
+            ).catch(err => {
+                this.logger.error("Failed to dispatch message request notification:", err);
+            });
+
+            return { isMessageRequest: true, request };
+        }
+
+        const room = existingRoom ?? await this.createChatRoomIfNotExists(userId, sendMessageDto.receiver_id);
 
         const createdChat = await this.prismaService.chat.create({
             data: {
                 chatRoom_id: room.id,
                 sender_id: userId,
                 receiver_id: sendMessageDto.receiver_id,
-                message: sendMessageDto.message,
+                message: finalMessage,
+                encryptionType: sendMessageDto.encryptionType,
+                encryptionVersion: sendMessageDto.encryptionVersion,
+                senderKeyId: sendMessageDto.senderKeyId,
+                receiverKeyId: sendMessageDto.receiverKeyId,
+                nonce: sendMessageDto.nonce,
             },
             include: {
                 sender: {
@@ -134,7 +172,11 @@ export class ChatService {
             throw new BadRequestException("You can not message this account");
         }
 
-        const room = await this.createChatRoomIfNotExists(userId, sendFileDto.receiver_id);
+        const room = await this.getChatRoomIfExist(userId, sendFileDto.receiver_id);
+
+        if (!room) {
+            throw new BadRequestException("The receiver must accept your message request before you can send files");
+        }
 
         const createdChat = await this.prismaService.chat.create({
             data: {
@@ -147,6 +189,11 @@ export class ChatService {
                 file_name: file.originalname,
                 file_size: file.size,
                 file_mime_type: file.mimetype,
+                encryptionType: sendFileDto.encryptionType,
+                encryptionVersion: sendFileDto.encryptionVersion,
+                senderKeyId: sendFileDto.senderKeyId,
+                receiverKeyId: sendFileDto.receiverKeyId,
+                nonce: sendFileDto.nonce,
             },
             include: {
                 sender: {
@@ -192,6 +239,88 @@ export class ChatService {
         return createdChat;
     }
 
+    async sendVoiceMessage(userId: string, sendVoiceDto: SendVoiceDto, file: Express.Multer.File) {
+        if (!file) {
+            throw new BadRequestException("Voice file is required");
+        }
+
+        if (!file.mimetype.startsWith("audio/")) {
+            throw new BadRequestException("Voice message must be an audio file");
+        }
+
+        if (userId === sendVoiceDto.receiver_id) {
+            throw new BadRequestException("You can not message yourself!");
+        }
+
+        const receiverUser = await this.prismaService.user.findUnique({
+            where: { id: sendVoiceDto.receiver_id }
+        });
+
+        if (!receiverUser) {
+            throw new BadRequestException("Receiver user not found");
+        }
+
+        const room = await this.getChatRoomIfExist(userId, sendVoiceDto.receiver_id);
+
+        if (!room) {
+            throw new BadRequestException("The receiver must accept your message request before you can send voice messages");
+        }
+
+        const createdChat = await this.prismaService.chat.create({
+            data: {
+                chatRoom_id: room.id,
+                sender_id: userId,
+                receiver_id: sendVoiceDto.receiver_id,
+                message: sendVoiceDto.message || file.originalname,
+                type: MessageType.VOICE,
+                file_url: `/uploads/chats/${file.filename}`,
+                file_name: file.originalname,
+                file_size: file.size,
+                file_mime_type: file.mimetype,
+                durationSeconds: sendVoiceDto.durationSeconds,
+                waveform: sendVoiceDto.waveform as any,
+                encryptionType: sendVoiceDto.encryptionType,
+                encryptionVersion: sendVoiceDto.encryptionVersion,
+                senderKeyId: sendVoiceDto.senderKeyId,
+                receiverKeyId: sendVoiceDto.receiverKeyId,
+                nonce: sendVoiceDto.nonce,
+            },
+            include: {
+                sender: {
+                    select: {
+                        id: true,
+                        nick_name: true,
+                        avatar: true
+                    }
+                },
+                receiver: {
+                    select: {
+                        id: true,
+                        nick_name: true,
+                        avatar: true
+                    }
+                }
+            },
+        });
+
+        await this.prismaService.chatRoom.update({
+            where: { id: room.id },
+            data: { updatedAt: new Date() }
+        });
+
+        if (this.socketRoomService && this.socketRoomService.server) {
+            const server = this.socketRoomService.server;
+            server.to(`user-${sendVoiceDto.receiver_id}`).emit("new-message", { ...createdChat, is_mine: false });
+            server.to(`user-${userId}`).emit("message-sent", { ...createdChat, is_mine: true });
+        }
+
+        this.notificationDispatcherService.dispatchChatNotification(createdChat, sendVoiceDto.receiver_id).catch(err => {
+            this.logger.error("Failed to dispatch chat notification:", err);
+        });
+
+        return createdChat;
+    }
+
     /**
      * Create chat room if it doesn't exist
      * @param userId 
@@ -222,6 +351,68 @@ export class ChatService {
         return newRoom;
     }
 
+    private async getActivePresetMessage(presetMessageId: string) {
+        const presetMessage = await this.prismaService.presetMessage.findUnique({
+            where: { id: presetMessageId },
+        });
+
+        if (!presetMessage || !presetMessage.isActive) {
+            throw new NotFoundException("Preset message not found");
+        }
+
+        return presetMessage;
+    }
+
+    private async createOrUpdatePendingMessageRequest(
+        senderId: string,
+        dto: CreateMessageRequestDto,
+    ) {
+        const existingRequest = await this.prismaService.messageRequest.findUnique({
+            where: {
+                senderId_receiverId: {
+                    senderId,
+                    receiverId: dto.receiverId,
+                },
+            },
+        });
+
+        if (existingRequest?.status === 'ACCEPTED') {
+            return existingRequest;
+        }
+
+        if (existingRequest?.status === 'DECLINED') {
+            throw new BadRequestException("The receiver declined this message request");
+        }
+
+        if (dto.presetMessageId) {
+            const preset = await this.getActivePresetMessage(dto.presetMessageId);
+            if (preset.type === 'ALERT') {
+                throw new BadRequestException("Alert preset messages are delivered directly and do not create requests");
+            }
+        }
+
+        if (existingRequest) {
+            return this.prismaService.messageRequest.update({
+                where: { id: existingRequest.id },
+                data: {
+                    firstMessage: dto.firstMessage,
+                    presetMessageId: dto.presetMessageId,
+                    status: 'PENDING',
+                },
+            });
+        }
+
+        return this.prismaService.messageRequest.create({
+            data: {
+                senderId,
+                receiverId: dto.receiverId,
+                firstMessage: dto.firstMessage,
+                presetMessageId: dto.presetMessageId,
+                status: 'PENDING',
+            },
+        });
+    }
+
     async getChatRoomIfExist(userId: string, receiverId: string) {
         const [user1_id, user2_id] = [userId, receiverId].sort();
 
@@ -235,6 +426,207 @@ export class ChatService {
             return existingRoom;
         }
 
+    }
+
+    async createMessageRequest(userId: string, dto: CreateMessageRequestDto) {
+        if (userId === dto.receiverId) {
+            throw new BadRequestException("You can not message yourself!");
+        }
+
+        const receiver = await this.prismaService.user.findUnique({
+            where: { id: dto.receiverId },
+        });
+
+        if (!receiver) {
+            throw new NotFoundException("Receiver user not found");
+        }
+
+        const existingRoom = await this.getChatRoomIfExist(userId, dto.receiverId);
+        if (existingRoom) {
+            return {
+                isExistingChat: true,
+                roomId: existingRoom.id,
+            };
+        }
+
+        return this.createOrUpdatePendingMessageRequest(userId, dto);
+    }
+
+    async getMessageRequestInbox(userId: string, page: number = 1, limit: number = 10) {
+        const skip = (Number(page) - 1) * Number(limit);
+
+        const [requests, total] = await Promise.all([
+            this.prismaService.messageRequest.findMany({
+                where: { receiverId: userId, status: 'PENDING' },
+                skip,
+                take: Number(limit),
+                orderBy: { createdAt: 'desc' },
+            }),
+            this.prismaService.messageRequest.count({
+                where: { receiverId: userId, status: 'PENDING' },
+            }),
+        ]);
+
+        const senderIds = [...new Set(requests.map((request) => request.senderId))];
+        const senders = await this.prismaService.user.findMany({
+            where: { id: { in: senderIds } },
+            select: { id: true, nick_name: true, avatar: true, licence_id: true },
+        });
+        const senderById = new Map(senders.map((sender) => [sender.id, sender]));
+
+        return {
+            requests: requests.map((request) => ({
+                ...request,
+                sender: senderById.get(request.senderId) ?? null,
+            })),
+            total,
+            page: Number(page),
+            limit: Number(limit),
+        };
+    }
+
+    async acceptMessageRequest(userId: string, requestId: string) {
+        const request = await this.prismaService.messageRequest.findUnique({
+            where: { id: requestId },
+        });
+
+        if (!request) {
+            throw new NotFoundException("Message request not found");
+        }
+
+        if (request.receiverId !== userId) {
+            throw new BadRequestException("Only the receiver can accept this message request");
+        }
+
+        if (request.status !== 'PENDING') {
+            throw new BadRequestException("Only pending message requests can be accepted");
+        }
+
+        const room = await this.createChatRoomIfNotExists(request.senderId, request.receiverId);
+        let deliveredMessage: any = null;
+
+        if (request.firstMessage) {
+            deliveredMessage = await this.prismaService.chat.create({
+                data: {
+                    chatRoom_id: room.id,
+                    sender_id: request.senderId,
+                    receiver_id: request.receiverId,
+                    message: request.firstMessage,
+                },
+                include: {
+                    sender: {
+                        select: { id: true, nick_name: true, avatar: true }
+                    },
+                    receiver: {
+                        select: { id: true, nick_name: true, avatar: true }
+                    },
+                },
+            });
+
+            await this.prismaService.chatRoom.update({
+                where: { id: room.id },
+                data: { updatedAt: new Date() },
+            });
+
+            if (this.socketRoomService && this.socketRoomService.server) {
+                const server = this.socketRoomService.server;
+                server.to(`user-${request.senderId}`).emit("message-request-accepted", {
+                    requestId: request.id,
+                    roomId: room.id,
+                    message: { ...deliveredMessage, is_mine: true },
+                });
+                server.to(`user-${request.receiverId}`).emit("new-message", {
+                    ...deliveredMessage,
+                    is_mine: false,
+                });
+            }
+        }
+
+        const updatedRequest = await this.prismaService.messageRequest.update({
+            where: { id: request.id },
+            data: {
+                status: 'ACCEPTED',
+                roomId: room.id,
+            },
+        });
+
+        return { request: updatedRequest, room, deliveredMessage };
+    }
+
+    async declineMessageRequest(userId: string, requestId: string) {
+        const request = await this.prismaService.messageRequest.findUnique({
+            where: { id: requestId },
+        });
+
+        if (!request) {
+            throw new NotFoundException("Message request not found");
+        }
+
+        if (request.receiverId !== userId) {
+            throw new BadRequestException("Only the receiver can decline this message request");
+        }
+
+        if (request.status !== 'PENDING') {
+            throw new BadRequestException("Only pending message requests can be declined");
+        }
+
+        return this.prismaService.messageRequest.update({
+            where: { id: request.id },
+            data: { status: 'DECLINED' },
+        });
+    }
+
+    async registerDeviceKey(userId: string, dto: RegisterDeviceKeyDto) {
+        return this.prismaService.userDeviceKey.upsert({
+            where: {
+                userId_deviceId: {
+                    userId,
+                    deviceId: dto.deviceId,
+                },
+            },
+            create: {
+                userId,
+                deviceId: dto.deviceId,
+                publicKey: dto.publicKey,
+                isActive: true,
+            },
+            update: {
+                publicKey: dto.publicKey,
+                isActive: true,
+            },
+        });
+    }
+
+    async getUserDeviceKeys(userId: string) {
+        return this.prismaService.userDeviceKey.findMany({
+            where: { userId, isActive: true },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    async deactivateDeviceKey(userId: string, deviceId: string) {
+        const key = await this.prismaService.userDeviceKey.findUnique({
+            where: {
+                userId_deviceId: {
+                    userId,
+                    deviceId,
+                },
+            },
+        });
+
+        if (!key) {
+            throw new NotFoundException("Device key not found");
+        }
+
+        return this.prismaService.userDeviceKey.update({
+            where: {
+                userId_deviceId: {
+                    userId,
+                    deviceId,
+                },
+            },
+            data: { isActive: false },
+        });
     }
 
     /**

@@ -14,6 +14,7 @@ import { PointModule } from './modules/point/point.module';
 import { RatingModule } from './modules/rating/rating.module';
 import { ParkingReportModule } from './modules/parking-report/parking-report.module';
 import { UserDocumentModule } from './modules/user-document/user-document.module';
+import { ParkRelayModule } from './modules/park-relay/park-relay.module';
 
 import jwtConfig from './config/jwt.config';
 import { PrivacyPolicyModule } from './modules/privacy_policy/privacy_policy.module';
@@ -43,6 +44,7 @@ import { HelpSupportModule } from './modules/help-support/help-support.module';
     BlacklistedwordModule,
     UserDocumentModule,
     HelpSupportModule,
+    ParkRelayModule,
   ],
   controllers: [AppController],
   providers: [AppService, ConfigService],

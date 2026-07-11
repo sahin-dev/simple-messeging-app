@@ -139,6 +139,12 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
             const chat = await this.chatService.createMessage(userId, data)
 
+            if ((chat as any).isMessageRequest) {
+                this.server.to(this.generateUserRoomId(data.receiver_id)).emit(EMIT_EVENTS.MESSAGE_REQUEST, (chat as any).request)
+                this.server.to(this.generateUserRoomId(userId)).emit(EMIT_EVENTS.MESSAGE_REQUEST_SENT, (chat as any).request)
+                return
+            }
+
             // Send to receiver
             this.server.to(this.generateUserRoomId(data.receiver_id)).emit(EMIT_EVENTS.NEW_MESSAGE, { ...chat, is_mine: false })
 
