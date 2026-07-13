@@ -40,6 +40,7 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     server: Server
 
     private userTypingStates: Map<string, Set<string>> = new Map() // Track typing users per group
+    private typingTimeouts: Map<string, NodeJS.Timeout> = new Map()
 
     constructor(
         private readonly chatService: ChatService,
@@ -74,13 +75,57 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         return `user-${userId}`
     }
 
-    handleDisconnect(client: Socket) {
+    private clearTypingTimeout(key: string) {
+        const timeout = this.typingTimeouts.get(key)
+        if (timeout) {
+            clearTimeout(timeout)
+            this.typingTimeouts.delete(key)
+        }
+    }
+
+    private setTypingTimeout(key: string, onExpire: () => void) {
+        this.clearTypingTimeout(key)
+        const timeout = setTimeout(() => {
+            this.typingTimeouts.delete(key)
+            onExpire()
+        }, 5000)
+        timeout.unref?.()
+        this.typingTimeouts.set(key, timeout)
+    }
+
+    async handleDisconnect(client: Socket) {
         console.log(`client disconnected: ${client.id}`)
 
         const userId = client.data.userId
 
         if (userId) {
             console.log(`User ${userId} disconnected.`)
+            const isOffline = this.socketRoomService.markUserDisconnected(userId, client.id)
+
+            this.userTypingStates.forEach((typingUsers, groupChatRoomId) => {
+                if (typingUsers.delete(userId)) {
+                    this.server.to(this.generateGroupRoomId(groupChatRoomId)).emit(EMIT_EVENTS.GROUP_USER_STOPPED_TYPING, {
+                        userId,
+                        groupChatRoomId
+                    })
+                }
+                if (typingUsers.size === 0) {
+                    this.userTypingStates.delete(groupChatRoomId)
+                }
+            })
+
+            if (isOffline) {
+                const lastSeen = await this.userService.updateLastSeenAt(userId).catch((err) => {
+                    console.error(`Failed to update lastSeenAt for user ${userId}:`, err)
+                    return null
+                })
+
+                this.server.emit(EMIT_EVENTS.USER_OFFLINE, {
+                    userId,
+                    isOnline: false,
+                    lastSeenAt: lastSeen?.lastSeenAt ?? new Date()
+                })
+            }
         }
     }
 
@@ -107,8 +152,17 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
             // Join user to their personal room
             client.join(this.generateUserRoomId(userId))
+            const wasOffline = this.socketRoomService.markUserConnected(userId, client.id)
 
             client.data.userId = userId
+
+            if (wasOffline) {
+                this.server.emit(EMIT_EVENTS.USER_ONLINE, {
+                    userId,
+                    isOnline: true,
+                    lastSeenAt: null
+                })
+            }
 
             client.emit(EMIT_EVENTS.SUCCESS, { message: "User Successfully Connected With Socket" })
 
@@ -177,6 +231,66 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
             }
         } catch (err: any) {
             console.error('Error in handleMesssageDelivery:', err);
+            throw new WsException({ message: err.message });
+        }
+    }
+
+    @SubscribeMessage(SUBSCRIBED_EVENTS.TYPING)
+    async handleTyping(
+        @MessageBody() data: { receiverId: string; roomId: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        try {
+            const userId = client.data.userId
+            await this.chatService.ensureUserCanTypeInRoom(userId, data.roomId, data.receiverId)
+
+            const user = await this.userService.findUserById(userId)
+            const payload = {
+                senderId: userId,
+                receiverId: data.receiverId,
+                roomId: data.roomId,
+                user: user ? {
+                    id: user.id,
+                    nick_name: user.nick_name,
+                    avatar: user.avatar
+                } : null
+            }
+
+            this.server.to(this.generateUserRoomId(data.receiverId)).emit(EMIT_EVENTS.USER_TYPING, payload)
+
+            const typingKey = `one-to-one-${data.roomId}-${userId}`
+            this.setTypingTimeout(typingKey, () => {
+                this.server.to(this.generateUserRoomId(data.receiverId)).emit(EMIT_EVENTS.USER_STOPPED_TYPING, {
+                    senderId: userId,
+                    receiverId: data.receiverId,
+                    roomId: data.roomId
+                })
+            })
+        } catch (err: any) {
+            console.error('Error in handleTyping:', err);
+            throw new WsException({ message: err.message });
+        }
+    }
+
+    @SubscribeMessage(SUBSCRIBED_EVENTS.STOP_TYPING)
+    async handleStopTyping(
+        @MessageBody() data: { receiverId: string; roomId: string },
+        @ConnectedSocket() client: Socket
+    ) {
+        try {
+            const userId = client.data.userId
+            await this.chatService.ensureUserCanTypeInRoom(userId, data.roomId, data.receiverId)
+
+            const typingKey = `one-to-one-${data.roomId}-${userId}`
+            this.clearTypingTimeout(typingKey)
+
+            this.server.to(this.generateUserRoomId(data.receiverId)).emit(EMIT_EVENTS.USER_STOPPED_TYPING, {
+                senderId: userId,
+                receiverId: data.receiverId,
+                roomId: data.roomId
+            })
+        } catch (err: any) {
+            console.error('Error in handleStopTyping:', err);
             throw new WsException({ message: err.message });
         }
     }
@@ -284,8 +398,9 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
             })
 
             // Stop typing indicator
-            this.userTypingStates.delete(`${data.groupChatRoomId}-${userId}`)
-            this.server.to(groupRoomId).emit(EMIT_EVENTS.GROUP_USER_STOPPED_TYPING, {
+            this.userTypingStates.get(data.groupChatRoomId)?.delete(userId)
+            this.clearTypingTimeout(`group-${data.groupChatRoomId}-${userId}`)
+            client.broadcast.to(groupRoomId).emit(EMIT_EVENTS.GROUP_USER_STOPPED_TYPING, {
                 userId,
                 groupChatRoomId: data.groupChatRoomId
             })
@@ -563,7 +678,8 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     ) {
         try {
             const userId = client.data.userId
-            const typingKey = `${data.groupChatRoomId}-${userId}`
+            await this.groupChatService.ensureGroupMember(data.groupChatRoomId, userId)
+            const typingKey = `group-${data.groupChatRoomId}-${userId}`
 
             // Add user to typing set
             if (!this.userTypingStates.has(data.groupChatRoomId)) {
@@ -572,11 +688,25 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
             this.userTypingStates.get(data.groupChatRoomId)!.add(userId)
 
             const groupRoomId = this.generateGroupRoomId(data.groupChatRoomId)
+            const user = await this.userService.findUserById(userId)
 
             // Notify all group members that this user is typing
-            this.server.to(groupRoomId).emit(EMIT_EVENTS.GROUP_USER_TYPING, {
+            client.broadcast.to(groupRoomId).emit(EMIT_EVENTS.GROUP_USER_TYPING, {
                 userId,
-                groupChatRoomId: data.groupChatRoomId
+                groupChatRoomId: data.groupChatRoomId,
+                user: user ? {
+                    id: user.id,
+                    nick_name: user.nick_name,
+                    avatar: user.avatar
+                } : null
+            })
+
+            this.setTypingTimeout(typingKey, () => {
+                this.userTypingStates.get(data.groupChatRoomId)?.delete(userId)
+                this.server.to(groupRoomId).emit(EMIT_EVENTS.GROUP_USER_STOPPED_TYPING, {
+                    userId,
+                    groupChatRoomId: data.groupChatRoomId
+                })
             })
         } catch (err: any) {
             console.log(err)
@@ -591,16 +721,18 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     ) {
         try {
             const userId = client.data.userId
+            await this.groupChatService.ensureGroupMember(data.groupChatRoomId, userId)
 
             // Remove user from typing set
             if (this.userTypingStates.has(data.groupChatRoomId)) {
                 this.userTypingStates.get(data.groupChatRoomId)!.delete(userId)
             }
+            this.clearTypingTimeout(`group-${data.groupChatRoomId}-${userId}`)
 
             const groupRoomId = this.generateGroupRoomId(data.groupChatRoomId)
 
             // Notify all group members that this user stopped typing
-            this.server.to(groupRoomId).emit(EMIT_EVENTS.GROUP_USER_STOPPED_TYPING, {
+            client.broadcast.to(groupRoomId).emit(EMIT_EVENTS.GROUP_USER_STOPPED_TYPING, {
                 userId,
                 groupChatRoomId: data.groupChatRoomId
             })

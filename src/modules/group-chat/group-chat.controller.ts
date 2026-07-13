@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Put, Delete, Body, Param, Query, Req, HttpCode, Patch, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { GroupChatService } from './group-chat.service';
 import { CreateGroupChatRoomDto } from './dtos/create-group-chat-room.dto';
-import { SendGroupFileDto } from './dtos/send-group-file.dto';
+import { SendGroupFileDto, SendGroupVoiceDto } from './dtos/send-group-file.dto';
 import { UpdateGroupChatRoomDto } from './dtos/update-group-chat-room.dto';
 import { AddGroupMembersDto } from './dtos/add-group-members.dto';
 import { PaginationDto } from './dtos/pagination.dto';
@@ -69,6 +69,40 @@ export class GroupChatController {
     return this.groupChatService.sendGroupFileMessage(payload.id, sendGroupFileDto, file);
   }
 
+  @Post('message/voice')
+  @HttpCode(201)
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 10 * 1024 * 1024 },
+    storage: diskStorage({
+      destination: './uploads/chats',
+      filename: (req, file, cb) => {
+        const uuid = randomUUID().toString();
+        const ext = file.originalname.split('.').pop() || 'audio';
+        cb(null, `group_voice_${uuid}.${ext}`);
+      }
+    })
+  }))
+  @ResponseMessage('Group voice message sent successfully')
+  async sendGroupVoiceMessage(
+    @Req() request: Request,
+    @Body() sendGroupVoiceDto: SendGroupVoiceDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const payload = request['payload'] as TokenPayload;
+    return this.groupChatService.sendGroupVoiceMessage(payload.id, sendGroupVoiceDto, file);
+  }
+
+  @Delete('message/:messageId')
+  @HttpCode(200)
+  @ResponseMessage('Group message deleted successfully')
+  async deleteGroupMessage(
+    @Req() request: Request,
+    @Param('messageId') messageId: string,
+  ) {
+    const payload = request['payload'] as TokenPayload;
+    return this.groupChatService.deleteGroupMessageForEveryone(payload.id, messageId);
+  }
+
   @Get('rooms')
   @HttpCode(200)
   @ResponseMessage('Group chat rooms fetched successfully')
@@ -90,6 +124,17 @@ export class GroupChatController {
   ) {
     const payload = request['payload'] as TokenPayload;
     return this.groupChatService.getGroupChatMessages(roomId, payload.id, paginationDto);
+  }
+
+  @Get('room/:roomId/e2ee/keys')
+  @HttpCode(200)
+  @ResponseMessage('Group member device keys fetched successfully')
+  async getGroupMemberDeviceKeys(
+    @Req() request: Request,
+    @Param('roomId') roomId: string,
+  ) {
+    const payload = request['payload'] as TokenPayload;
+    return this.groupChatService.getGroupMemberDeviceKeys(roomId, payload.id);
   }
 
   @Post('room/:roomId/member/:memberId')
