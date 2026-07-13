@@ -119,4 +119,10 @@ export class UserResponseDto {
 
     @Expose()
     city?: string
+
+    @Expose()
+    isOnline?: boolean
+
+    @Expose()
+    lastSeenAt?: Date | string | null
 }

@@ -380,8 +380,11 @@ export class NotificationDispatcherService {
             continue;
           }
 
+          const isEncrypted = Boolean(groupChat.encryptionType);
           const title = `${groupChatRoom.name}`;
-          const message = `${groupChat.sender?.nick_name || groupChat.sender?.name}: ${groupChat.message.substring(0, 50)}`;
+          const message = isEncrypted
+            ? `${groupChat.sender?.nick_name || groupChat.sender?.name}: sent an encrypted message`
+            : `${groupChat.sender?.nick_name || groupChat.sender?.name}: ${groupChat.message.substring(0, 50)}`;
 
           // Skip notification event and push if member is online
           const isOnline = await this.isUserOnline(member.user_id);

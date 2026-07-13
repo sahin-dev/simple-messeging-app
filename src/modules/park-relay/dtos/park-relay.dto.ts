@@ -9,7 +9,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ParkingCost } from 'src/common/enums';
 
 export enum ParkingSearchStatusDto {
@@ -103,6 +103,67 @@ export class CreateParkingAreaDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+}
+
+export class SubmitParkingAreaPointDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsNumber()
+  centerLat: number;
+
+  @IsNumber()
+  centerLng: number;
+}
+
+export class SearchParkingAreaDto {
+  @IsOptional()
+  @IsString()
+  query?: string;
+
+  @IsOptional()
+  @IsEnum(ParkingCost)
+  parkingCost?: ParkingCost;
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (value === true || value === 'true') return true;
+    if (value === false || value === 'false') return false;
+    return value;
+  })
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  latitude?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  longitude?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  radiusMeters?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  limit?: number;
 }
 
 export class UpdateParkingAreaDto {

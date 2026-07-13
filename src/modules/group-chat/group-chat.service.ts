@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, NotFoundException, forwardRef, Inject,
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGroupChatRoomDto } from './dtos/create-group-chat-room.dto';
 import { SendGroupMessageDto } from './dtos/send-group-message.dto';
-import { SendGroupFileDto } from './dtos/send-group-file.dto';
+import { SendGroupFileDto, SendGroupVoiceDto } from './dtos/send-group-file.dto';
 import { UpdateGroupChatRoomDto } from './dtos/update-group-chat-room.dto';
 import { PaginationDto } from './dtos/pagination.dto';
 import { group } from 'console';
@@ -81,6 +81,11 @@ export class GroupChatService {
         groupChatRoom_id: sendGroupMessageDto.groupChatRoomId,
         sender_id: userId,
         message: sendGroupMessageDto.message,
+        encryptionType: sendGroupMessageDto.encryptionType,
+        encryptionVersion: sendGroupMessageDto.encryptionVersion,
+        senderKeyId: sendGroupMessageDto.senderKeyId,
+        nonce: sendGroupMessageDto.nonce,
+        encryptedKeys: this.normalizeEncryptedKeys(sendGroupMessageDto.encryptedKeys) as any,
       },
       include: {
         sender: {
@@ -111,17 +116,7 @@ export class GroupChatService {
       throw new BadRequestException('File is required');
     }
 
-    // Verify user is a member of the group
-    const membership = await this.prismaService.groupChatRoomMember.findFirst({
-      where: {
-        groupChatRoom_id: sendGroupFileDto.groupChatRoomId,
-        user_id: userId,
-      },
-    });
-
-    if (!membership) {
-      throw new BadRequestException('You are not a member of this group');
-    }
+    await this.ensureGroupMember(sendGroupFileDto.groupChatRoomId, userId);
 
     const groupChat = await this.prismaService.groupChat.create({
       data: {
@@ -133,6 +128,11 @@ export class GroupChatService {
         file_name: file.originalname,
         file_size: file.size,
         file_mime_type: file.mimetype,
+        encryptionType: sendGroupFileDto.encryptionType,
+        encryptionVersion: sendGroupFileDto.encryptionVersion,
+        senderKeyId: sendGroupFileDto.senderKeyId,
+        nonce: sendGroupFileDto.nonce,
+        encryptedKeys: this.normalizeEncryptedKeys(sendGroupFileDto.encryptedKeys) as any,
       },
       include: {
         sender: {
@@ -155,35 +155,61 @@ export class GroupChatService {
       this.logger.error(`Failed to dispatch group chat file notification: ${err.message}`);
     });
 
-    // Broadcast the message to all group members via WebSocket
-    if (this.socketRoomService && this.socketRoomService.server) {
-      const server = this.socketRoomService.server;
-      const groupChatRoomId = sendGroupFileDto.groupChatRoomId;
+    await this.broadcastGroupMessage(sendGroupFileDto.groupChatRoomId, userId, groupChat);
 
-      // Find all members in the group to send notification
-      const members = await this.prismaService.groupChatRoomMember.findMany({
-        where: { groupChatRoom_id: groupChatRoomId },
-        select: { user_id: true }
-      });
+    return groupChat;
+  }
 
-      members.forEach((member) => {
-        const userRoomId = `user-${member.user_id}`;
-        const isMine = member.user_id === userId;
-
-        if (isMine) {
-          server.to(userRoomId).emit('group-message-sent', {
-            ...groupChat,
-            is_mine: true
-          });
-        } else {
-          server.to(userRoomId).emit('group-new-message', {
-            ...groupChat,
-            groupChatRoomId: groupChatRoomId,
-            is_mine: false
-          });
-        }
-      });
+  async sendGroupVoiceMessage(userId: string, sendGroupVoiceDto: SendGroupVoiceDto, file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('Voice file is required');
     }
+
+    if (!file.mimetype.startsWith('audio/')) {
+      throw new BadRequestException('Group voice message must be an audio file');
+    }
+
+    await this.ensureGroupMember(sendGroupVoiceDto.groupChatRoomId, userId);
+
+    const groupChat = await this.prismaService.groupChat.create({
+      data: {
+        groupChatRoom_id: sendGroupVoiceDto.groupChatRoomId,
+        sender_id: userId,
+        message: sendGroupVoiceDto.message || file.originalname,
+        type: MessageType.VOICE,
+        file_url: `/uploads/chats/${file.filename}`,
+        file_name: file.originalname,
+        file_size: file.size,
+        file_mime_type: file.mimetype,
+        durationSeconds: sendGroupVoiceDto.durationSeconds,
+        waveform: this.normalizeWaveform(sendGroupVoiceDto.waveform) as any,
+        encryptionType: sendGroupVoiceDto.encryptionType,
+        encryptionVersion: sendGroupVoiceDto.encryptionVersion,
+        senderKeyId: sendGroupVoiceDto.senderKeyId,
+        nonce: sendGroupVoiceDto.nonce,
+        encryptedKeys: this.normalizeEncryptedKeys(sendGroupVoiceDto.encryptedKeys) as any,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            nick_name: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    const groupChatRoom = await this.prismaService.groupChatRoom.update({
+      where: { id: sendGroupVoiceDto.groupChatRoomId },
+      data: { updatedAt: new Date() },
+    });
+
+    this.notificationDispatcherService.dispatchGroupChatNotification(groupChat, groupChatRoom).catch((err) => {
+      this.logger.error(`Failed to dispatch group chat voice notification: ${err.message}`);
+    });
+
+    await this.broadcastGroupMessage(sendGroupVoiceDto.groupChatRoomId, userId, groupChat);
 
     return groupChat;
   }
@@ -208,6 +234,7 @@ export class GroupChatService {
                   id: true,
                   nick_name: true,
                   avatar: true,
+                  lastSeenAt: true,
                 },
               },
             },
@@ -240,7 +267,17 @@ export class GroupChatService {
       }),
     ]);
 
-    return { rooms, total };
+    return {
+      rooms: rooms.map((room) => ({
+        ...room,
+        members: room.members.map((member) => ({
+          ...member,
+          user: this.attachPresence(member.user),
+        })),
+        chats: room.chats.map((chat) => this.maskDeletedGroupMessage(chat)),
+      })),
+      total,
+    };
   }
 
   async getGroupChatMessages(groupChatRoomId: string, userId: string, paginationDto: PaginationDto) {
@@ -290,11 +327,132 @@ export class GroupChatService {
     });
 
     const mappedMessages = messages.map((message) => ({
-      ...message,
+      ...this.maskDeletedGroupMessage(message),
       is_mine: message.sender_id === userId,
     }));
 
     return { messages: mappedMessages, total };
+  }
+
+  async deleteGroupMessageForEveryone(userId: string, messageId: string) {
+    const message = await this.prismaService.groupChat.findUnique({
+      where: { id: messageId },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Group message not found');
+    }
+
+    const membership = await this.prismaService.groupChatRoomMember.findFirst({
+      where: {
+        groupChatRoom_id: message.groupChatRoom_id,
+        user_id: userId,
+      },
+    });
+
+    if (!membership) {
+      throw new BadRequestException('You are not a member of this group');
+    }
+
+    const isSender = message.sender_id === userId;
+    const isGroupAdmin = membership.group_role === 'GROUP_ADMIN';
+
+    if (!isSender && !isGroupAdmin) {
+      throw new BadRequestException('Only the sender or a group admin can delete this message');
+    }
+
+    if (message.isDeletedForEveryone) {
+      return this.maskDeletedGroupMessage(message);
+    }
+
+    const deletedMessage = await this.prismaService.groupChat.update({
+      where: { id: messageId },
+      data: {
+        message: '',
+        file_url: null,
+        file_name: null,
+        file_size: null,
+        file_mime_type: null,
+        durationSeconds: null,
+        waveform: null,
+        encryptionType: null,
+        encryptionVersion: null,
+        senderKeyId: null,
+        nonce: null,
+        encryptedKeys: null,
+        isDeletedForEveryone: true,
+        deletedAt: new Date(),
+        deletedById: userId,
+      },
+    });
+
+    if (this.socketRoomService?.server) {
+      const members = await this.prismaService.groupChatRoomMember.findMany({
+        where: { groupChatRoom_id: deletedMessage.groupChatRoom_id },
+        select: { user_id: true },
+      });
+      const payload = {
+        messageId: deletedMessage.id,
+        groupChatRoomId: deletedMessage.groupChatRoom_id,
+        deletedById: userId,
+        isDeletedForEveryone: true,
+        deletedAt: deletedMessage.deletedAt,
+      };
+
+      members.forEach((member) => {
+        this.socketRoomService.server.to(`user-${member.user_id}`).emit('group-message-deleted', payload);
+      });
+    }
+
+    return this.maskDeletedGroupMessage(deletedMessage);
+  }
+
+  async getGroupMemberDeviceKeys(groupChatRoomId: string, userId: string) {
+    const membership = await this.prismaService.groupChatRoomMember.findFirst({
+      where: {
+        groupChatRoom_id: groupChatRoomId,
+        user_id: userId,
+      },
+    });
+
+    if (!membership) {
+      throw new BadRequestException('You are not a member of this group');
+    }
+
+    const members = await this.prismaService.groupChatRoomMember.findMany({
+      where: { groupChatRoom_id: groupChatRoomId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            nick_name: true,
+            avatar: true,
+            deviceKeys: {
+              where: { isActive: true },
+              orderBy: { createdAt: 'desc' },
+              select: {
+                id: true,
+                deviceId: true,
+                publicKey: true,
+                isActive: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      groupChatRoomId,
+      members: members.map((member) => ({
+        userId: member.user_id,
+        groupRole: member.group_role,
+        user: member.user,
+        deviceKeys: member.user.deviceKeys,
+      })),
+    };
   }
 
   async addGroupMember(groupChatRoomId: string, userId: string, newMemberId: string) {
@@ -573,6 +731,136 @@ export class GroupChatService {
     } catch (error:any) {
       this.logger.error(`Failed to delete old group image: ${error.message}`);
     }
+  }
+
+  private normalizeEncryptedKeys(encryptedKeys?: Array<Record<string, any>> | string) {
+    if (!encryptedKeys) {
+      return undefined;
+    }
+
+    if (typeof encryptedKeys !== 'string') {
+      if (!Array.isArray(encryptedKeys)) {
+        throw new BadRequestException('encryptedKeys must be an array');
+      }
+
+      return encryptedKeys;
+    }
+
+    try {
+      const parsed = JSON.parse(encryptedKeys);
+
+      if (!Array.isArray(parsed)) {
+        throw new BadRequestException('encryptedKeys must be a valid JSON array');
+      }
+
+      return parsed;
+    } catch {
+      throw new BadRequestException('encryptedKeys must be a valid JSON array');
+    }
+  }
+
+  private normalizeWaveform(waveform?: number[] | string) {
+    if (!waveform) {
+      return undefined;
+    }
+
+    if (typeof waveform !== 'string') {
+      if (!Array.isArray(waveform)) {
+        throw new BadRequestException('waveform must be an array');
+      }
+
+      return waveform;
+    }
+
+    try {
+      const parsed = JSON.parse(waveform);
+
+      if (!Array.isArray(parsed)) {
+        throw new BadRequestException('waveform must be a valid JSON array');
+      }
+
+      return parsed;
+    } catch {
+      throw new BadRequestException('waveform must be a valid JSON array');
+    }
+  }
+
+  async ensureGroupMember(groupChatRoomId: string, userId: string) {
+    const membership = await this.prismaService.groupChatRoomMember.findFirst({
+      where: {
+        groupChatRoom_id: groupChatRoomId,
+        user_id: userId,
+      },
+    });
+
+    if (!membership) {
+      throw new BadRequestException('You are not a member of this group');
+    }
+
+    return membership;
+  }
+
+  private async broadcastGroupMessage(groupChatRoomId: string, senderId: string, groupChat: any) {
+    if (!this.socketRoomService?.server) {
+      return;
+    }
+
+    const members = await this.prismaService.groupChatRoomMember.findMany({
+      where: { groupChatRoom_id: groupChatRoomId },
+      select: { user_id: true },
+    });
+
+    members.forEach((member) => {
+      const userRoomId = `user-${member.user_id}`;
+      const isMine = member.user_id === senderId;
+
+      if (isMine) {
+        this.socketRoomService.server.to(userRoomId).emit('group-message-sent', {
+          ...groupChat,
+          is_mine: true,
+        });
+      } else {
+        this.socketRoomService.server.to(userRoomId).emit('group-new-message', {
+          ...groupChat,
+          groupChatRoomId,
+          is_mine: false,
+        });
+      }
+    });
+  }
+
+  private maskDeletedGroupMessage(message: any) {
+    if (!message?.isDeletedForEveryone) {
+      return message;
+    }
+
+    return {
+      ...message,
+      message: null,
+      file_url: null,
+      file_name: null,
+      file_size: null,
+      file_mime_type: null,
+      durationSeconds: null,
+      waveform: null,
+      encryptionType: null,
+      encryptionVersion: null,
+      senderKeyId: null,
+      nonce: null,
+      encryptedKeys: null,
+    };
+  }
+
+  private attachPresence<T extends { id: string; lastSeenAt?: Date | string | null }>(user: T) {
+    const presence = this.socketRoomService?.getPresence
+      ? this.socketRoomService.getPresence(user.id, user.lastSeenAt)
+      : { isOnline: false, lastSeenAt: user.lastSeenAt ?? null };
+
+    return {
+      ...user,
+      isOnline: presence.isOnline,
+      lastSeenAt: presence.lastSeenAt,
+    };
   }
 
   async leaveGroup(groupChatRoomId: string, userId: string) {

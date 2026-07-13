@@ -74,6 +74,7 @@ model User {
 
   deviceKeys UserDeviceKey[]
 
+  lastSeenAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -137,10 +138,20 @@ model GroupChat {
   sender_id        String      @db.ObjectId
   message          String
   type             MessageType @default(TEXT)
+  encryptionType   String?
+  encryptionVersion Int?
+  senderKeyId      String?     @db.ObjectId
+  nonce            String?
+  encryptedKeys    Json?
   file_url         String?
   file_name        String?
   file_size        Int?
   file_mime_type   String?
+  durationSeconds  Int?
+  waveform         Json?
+  isDeletedForEveryone Boolean @default(false)
+  deletedAt        DateTime?
+  deletedById      String?     @db.ObjectId
 
   groupChatRoom GroupChatRoom @relation(fields: [groupChatRoom_id], references: [id], onDelete: Cascade)
   sender        User          @relation(fields: [sender_id], references: [id], onDelete: Cascade, name: "sender")
@@ -171,6 +182,9 @@ model Chat {
   file_mime_type String?
   durationSeconds Int?
   waveform       Json?
+  isDeletedForEveryone Boolean @default(false)
+  deletedAt      DateTime?
+  deletedById    String?     @db.ObjectId
 
   chatRoom ChatRoom @relation(fields: [chatRoom_id], references: [id], onDelete: Cascade)
   sender   User     @relation("sender", fields: [sender_id], references: [id], onDelete: Cascade)
@@ -470,9 +484,9 @@ model ParkingArea {
   description String?
   centerLat   Float
   centerLng   Float
-  polygon     Json
-  parkingCost ParkingCost
-  isActive    Boolean     @default(true)
+  polygon     Json?
+  parkingCost ParkingCost?
+  isActive    Boolean     @default(false)
   createdById String      @db.ObjectId
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt

@@ -64,6 +64,17 @@ export class ChatController {
         return this.chatService.sendVoiceMessage(payload.id, sendVoiceDto, file);
     }
 
+    @Delete("messages/:messageId")
+    @HttpCode(200)
+    @ResponseMessage("Message deleted successfully")
+    async deleteMessage(
+        @Req() request: Request,
+        @Param("messageId") messageId: string,
+    ) {
+        const payload = request["payload"] as TokenPayload;
+        return this.chatService.deleteMessageForEveryone(payload.id, messageId);
+    }
+
     @Post("message-requests")
     @HttpCode(201)
     @ResponseMessage("Message request created successfully")
@@ -85,6 +96,18 @@ export class ChatController {
     ) {
         const payload = request["payload"] as TokenPayload;
         return this.chatService.getMessageRequestInbox(payload.id, page, limit);
+    }
+
+    @Get("message-requests/sent")
+    @HttpCode(200)
+    @ResponseMessage("Sent message requests fetched successfully")
+    async getSentMessageRequests(
+        @Req() request: Request,
+        @Query("page") page: number = 1,
+        @Query("limit") limit: number = 10,
+    ) {
+        const payload = request["payload"] as TokenPayload;
+        return this.chatService.getSentMessageRequests(payload.id, page, limit);
     }
 
     @Post("message-requests/:id/accept")

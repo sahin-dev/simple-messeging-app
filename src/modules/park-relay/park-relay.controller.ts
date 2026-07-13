@@ -19,6 +19,8 @@ import {
   CreateParkingHandoffDto,
   CreateParkingSessionDto,
   SaveParkingLocationDto,
+  SearchParkingAreaDto,
+  SubmitParkingAreaPointDto,
   UpdateParkingAreaDto,
   UpdateParkingModeDto,
 } from './dtos/park-relay.dto';
@@ -188,6 +190,23 @@ export class ParkRelayController {
       Number(longitude),
       radiusMeters ? Number(radiusMeters) : undefined,
     );
+  }
+
+  @Get('parking-areas/search')
+  @HttpCode(200)
+  @ResponseMessage('Parking areas searched successfully')
+  async searchParkingAreas(@Query() query: SearchParkingAreaDto) {
+    return this.parkRelayService.searchParkingAreas(query);
+  }
+
+  @Post('parking-areas')
+  @HttpCode(201)
+  @ResponseMessage('Parking area submitted successfully')
+  async submitParkingAreaPoint(
+    @GetUser('id') userId: string,
+    @Body() dto: SubmitParkingAreaPointDto,
+  ) {
+    return this.parkRelayService.submitParkingAreaPoint(userId, dto);
   }
 
   @Post('admin/parking-areas')

@@ -11,6 +11,8 @@ import {
   CreateParkingSessionDto,
   ParkingSaveSourceDto,
   SaveParkingLocationDto,
+  SearchParkingAreaDto,
+  SubmitParkingAreaPointDto,
   UpdateParkingAreaDto,
   UpdateParkingModeDto,
 } from './dtos/park-relay.dto';
@@ -434,6 +436,7 @@ export class ParkRelayService {
   }
 
   async createParkingArea(adminId: string, dto: CreateParkingAreaDto) {
+    this.validateCoordinates(dto.centerLat, dto.centerLng);
     this.validatePolygon(dto.polygon);
 
     return this.prismaService.parkingArea.create({
@@ -450,6 +453,21 @@ export class ParkRelayService {
     });
   }
 
+  async submitParkingAreaPoint(userId: string, dto: SubmitParkingAreaPointDto) {
+    this.validateCoordinates(dto.centerLat, dto.centerLng);
+
+    return this.prismaService.parkingArea.create({
+      data: {
+        name: dto.name,
+        description: dto.description,
+        centerLat: dto.centerLat,
+        centerLng: dto.centerLng,
+        isActive: false,
+        createdById: userId,
+      },
+    });
+  }
+
   async getParkingAreas(page = 1, limit = 20) {
     const skip = (Number(page) - 1) * Number(limit);
     const [areas, total] = await Promise.all([
@@ -462,6 +480,78 @@ export class ParkRelayService {
     ]);
 
     return { areas, total, page: Number(page), limit: Number(limit) };
+  }
+
+  async searchParkingAreas(query: SearchParkingAreaDto) {
+    const page = Math.max(Number(query.page) || 1, 1);
+    const limit = Math.min(Math.max(Number(query.limit) || 20, 1), 100);
+    const skip = (page - 1) * limit;
+    const where: any = {
+      isActive: query.isActive ?? true,
+    };
+    const hasLatitude = query.latitude !== undefined;
+    const hasLongitude = query.longitude !== undefined;
+
+    if (query.query) {
+      where.OR = [
+        { name: { contains: query.query, mode: 'insensitive' } },
+        { description: { contains: query.query, mode: 'insensitive' } },
+      ];
+    }
+
+    if (query.parkingCost) {
+      where.parkingCost = query.parkingCost;
+    }
+
+    if (hasLatitude !== hasLongitude) {
+      throw new BadRequestException('latitude and longitude must be provided together');
+    }
+
+    if (query.radiusMeters !== undefined && (!hasLatitude || !hasLongitude)) {
+      throw new BadRequestException('radiusMeters requires latitude and longitude');
+    }
+
+    if (hasLatitude && hasLongitude) {
+      this.validateCoordinates(query.latitude!, query.longitude!);
+    }
+
+    if (query.radiusMeters !== undefined && Number(query.radiusMeters) <= 0) {
+      throw new BadRequestException('radiusMeters must be greater than zero');
+    }
+
+    const areas = await this.prismaService.parkingArea.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const areasWithDistance = hasLatitude && hasLongitude
+      ? areas
+          .map((area) => ({
+            ...area,
+            distanceMeters: Math.round(
+              this.geolocationService.calculateDistance(
+                query.latitude!,
+                query.longitude!,
+                area.centerLat,
+                area.centerLng,
+              ),
+            ),
+            googleMapsLink: this.buildGoogleMapsLink(area.centerLat, area.centerLng, 'driving'),
+          }))
+          .filter((area) => (
+            query.radiusMeters === undefined
+              ? true
+              : area.distanceMeters <= Number(query.radiusMeters)
+          ))
+          .sort((a, b) => a.distanceMeters - b.distanceMeters)
+      : areas;
+
+    return {
+      areas: areasWithDistance.slice(skip, skip + limit),
+      total: areasWithDistance.length,
+      page,
+      limit,
+    };
   }
 
   async getNearbyParkingAreas(latitude: number, longitude: number, radiusMeters = 1000) {
@@ -500,6 +590,12 @@ export class ParkRelayService {
 
     if (dto.polygon) {
       this.validatePolygon(dto.polygon);
+    }
+
+    const nextCenterLat = dto.centerLat ?? area.centerLat;
+    const nextCenterLng = dto.centerLng ?? area.centerLng;
+    if (dto.centerLat !== undefined || dto.centerLng !== undefined) {
+      this.validateCoordinates(nextCenterLat, nextCenterLng);
     }
 
     return this.prismaService.parkingArea.update({

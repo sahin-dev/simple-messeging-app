@@ -7,6 +7,11 @@ export enum EMIT_EVENTS  {
     MESSAGE_REQUEST_ACCEPTED = "message-request-accepted",
     MESSAGE_DELIVERED = "message-delivered",
     MESSAGE_READ = "message-read",
+    MESSAGE_DELETED = "message-deleted",
+    USER_TYPING = "user-typing",
+    USER_STOPPED_TYPING = "user-stopped-typing",
+    USER_ONLINE = "user-online",
+    USER_OFFLINE = "user-offline",
 
     ALL_CHAT_ROOMS = "all-chat-rooms",
     ALL_MESSAGES = "all-messages",
@@ -22,6 +27,7 @@ export enum EMIT_EVENTS  {
     GROUP_MEMBERS_ADDED = "group-members-added",
     GROUP_MEMBER_REMOVED = "group-member-removed",
     GROUP_UPDATED = "group-updated",
+    GROUP_MESSAGE_DELETED = "group-message-deleted",
     GROUP_USER_TYPING = "group-user-typing",
     GROUP_USER_STOPPED_TYPING = "group-user-stopped-typing",
 }
@@ -33,6 +39,8 @@ export enum SUBSCRIBED_EVENTS {
     SEND_FILE = "send-file",
 
     MESSAGE_RECEIVED = "message-received",
+    TYPING = "typing",
+    STOP_TYPING = "stop-typing",
 
     // Group Chat Events
     CREATE_GROUP_CHAT = "create-group-chat",

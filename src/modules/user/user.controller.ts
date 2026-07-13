@@ -326,6 +326,17 @@ export class UserController {
         return userInfo;
     }
 
+    @Get("presence")
+    @ResponseMessage("User presence fetched successfully")
+    async getUsersPresence(@Query("userIds") userIds: string) {
+        const parsedUserIds = (userIds || "")
+            .split(",")
+            .map((userId) => userId.trim())
+            .filter(Boolean);
+
+        return this.userService.getUsersPresence(parsedUserIds);
+    }
+
     /**
      * Get user profile with rating
      */

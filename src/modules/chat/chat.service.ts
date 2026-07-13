@@ -485,6 +485,39 @@ export class ChatService {
         };
     }
 
+    async getSentMessageRequests(userId: string, page: number = 1, limit: number = 10) {
+        const skip = (Number(page) - 1) * Number(limit);
+
+        const [requests, total] = await Promise.all([
+            this.prismaService.messageRequest.findMany({
+                where: { senderId: userId },
+                skip,
+                take: Number(limit),
+                orderBy: { createdAt: 'desc' },
+            }),
+            this.prismaService.messageRequest.count({
+                where: { senderId: userId },
+            }),
+        ]);
+
+        const receiverIds = [...new Set(requests.map((request) => request.receiverId))];
+        const receivers = await this.prismaService.user.findMany({
+            where: { id: { in: receiverIds } },
+            select: { id: true, nick_name: true, avatar: true, licence_id: true },
+        });
+        const receiverById = new Map(receivers.map((receiver) => [receiver.id, receiver]));
+
+        return {
+            requests: requests.map((request) => ({
+                ...request,
+                receiver: receiverById.get(request.receiverId) ?? null,
+            })),
+            total,
+            page: Number(page),
+            limit: Number(limit),
+        };
+    }
+
     async acceptMessageRequest(userId: string, requestId: string) {
         const request = await this.prismaService.messageRequest.findUnique({
             where: { id: requestId },
@@ -655,22 +688,24 @@ export class ChatService {
                         user1: {
                             select: {
                                 id: true,
-                                nick_name: true,
-                                licence_id: true,
-                                avatar: true,
-                                is_vehicle_verified: true
-                            },
+                                        nick_name: true,
+                                        licence_id: true,
+                                        avatar: true,
+                                        is_vehicle_verified: true,
+                                        lastSeenAt: true
+                                    },
 
-                        },
+                                },
                         user2: {
                             select: {
                                 id: true,
-                                nick_name: true,
-                                licence_id: true,
-                                avatar: true,
-                                is_vehicle_verified: true
-                            }
-                        },
+                                        nick_name: true,
+                                        licence_id: true,
+                                        avatar: true,
+                                        is_vehicle_verified: true,
+                                        lastSeenAt: true
+                                    }
+                                },
                         chats: {
                             orderBy: { createdAt: "desc" },
                             take: 1,
@@ -725,7 +760,8 @@ export class ChatService {
                                         id: true,
                                         nick_name: true,
                                         avatar: true,
-                                        licence_id: true
+                                        licence_id: true,
+                                        lastSeenAt: true
                                     }
                                 }
                             }
@@ -786,9 +822,9 @@ export class ChatService {
             return {
                 ...room,
                 type: 'ONE_TO_ONE',
-                otherUser,
+                otherUser: this.attachPresence(otherUser),
                 latest_message: latestChat ? {
-                    ...latestChat,
+                    ...this.maskDeletedChatMessage(latestChat),
                     is_mine: is_latest_message_mine
                 } : null,
                 unread_count: _count.chats,
@@ -801,6 +837,7 @@ export class ChatService {
         // Map group rooms
         const mappedGroupRooms = groupRooms.map(({ members, chats, _count, ...room }) => {
             const latestChat = chats[0];
+            const maskedLatestChat = latestChat ? this.maskDeletedChatMessage(latestChat) : null;
             const is_latest_message_mine = latestChat?.sender_id === userId;
 
             return {
@@ -811,19 +848,22 @@ export class ChatService {
                     id: m.id,
                     user_id: m.user_id,
                     group_role: m.group_role,
-                    user: m.user
+                    user: this.attachPresence(m.user)
                 })),
-                latest_message: latestChat ? {
+                latest_message: maskedLatestChat ? {
                     id: latestChat.id,
                     groupChatRoom_id: latestChat.groupChatRoom_id,
                     sender_id: latestChat.sender_id,
-                    message: latestChat.message,
+                    message: maskedLatestChat.message,
                     createdAt: latestChat.createdAt,
                     type: latestChat.type,
-                    file_url: latestChat.file_url,
-                    file_name: latestChat.file_name,
-                    file_size: latestChat.file_size,
-                    file_mime_type: latestChat.file_mime_type,
+                    file_url: maskedLatestChat.file_url,
+                    file_name: maskedLatestChat.file_name,
+                    file_size: maskedLatestChat.file_size,
+                    file_mime_type: maskedLatestChat.file_mime_type,
+                    isDeletedForEveryone: maskedLatestChat.isDeletedForEveryone,
+                    deletedAt: maskedLatestChat.deletedAt,
+                    deletedById: maskedLatestChat.deletedById,
                     sender: {
                         id: latestChat.sender.id,
                         nick_name: latestChat.sender.nick_name,
@@ -905,11 +945,65 @@ export class ChatService {
 
         const mappedMessages = messages.map(message => {
             const is_mine = message.sender_id === userId;
-            return { ...message, is_mine };
+            return { ...this.maskDeletedChatMessage(message), is_mine };
         });
 
         // const reversedMessages = mappedMessages.reverse();
         return { messages: mappedMessages, total };
+    }
+
+    async deleteMessageForEveryone(userId: string, messageId: string) {
+        const chat = await this.prismaService.chat.findUnique({
+            where: { id: messageId },
+        });
+
+        if (!chat) {
+            throw new NotFoundException("Message not found");
+        }
+
+        if (chat.sender_id !== userId) {
+            throw new BadRequestException("Only the sender can delete this message");
+        }
+
+        if (chat.isDeletedForEveryone) {
+            return this.maskDeletedChatMessage(chat);
+        }
+
+        const deletedChat = await this.prismaService.chat.update({
+            where: { id: messageId },
+            data: {
+                message: "",
+                file_url: null,
+                file_name: null,
+                file_size: null,
+                file_mime_type: null,
+                durationSeconds: null,
+                waveform: null,
+                encryptionType: null,
+                encryptionVersion: null,
+                senderKeyId: null,
+                receiverKeyId: null,
+                nonce: null,
+                isDeletedForEveryone: true,
+                deletedAt: new Date(),
+                deletedById: userId,
+            },
+        });
+
+        const payload = {
+            messageId: deletedChat.id,
+            roomId: deletedChat.chatRoom_id,
+            deletedById: userId,
+            isDeletedForEveryone: true,
+            deletedAt: deletedChat.deletedAt,
+        };
+
+        if (this.socketRoomService?.server) {
+            this.socketRoomService.server.to(`user-${deletedChat.sender_id}`).emit("message-deleted", payload);
+            this.socketRoomService.server.to(`user-${deletedChat.receiver_id}`).emit("message-deleted", payload);
+        }
+
+        return this.maskDeletedChatMessage(deletedChat);
     }
 
     /**
@@ -941,6 +1035,62 @@ export class ChatService {
             return true
 
         return false
+    }
+
+    async ensureUserCanTypeInRoom(userId: string, roomId: string, receiverId: string) {
+        if (userId === receiverId) {
+            throw new BadRequestException("You can not type to yourself");
+        }
+
+        const room = await this.prismaService.chatRoom.findFirst({
+            where: {
+                id: roomId,
+                OR: [
+                    { user1_id: userId, user2_id: receiverId },
+                    { user1_id: receiverId, user2_id: userId },
+                ],
+            },
+        });
+
+        if (!room) {
+            throw new BadRequestException("You are not allowed to type in this room.");
+        }
+
+        return room;
+    }
+
+    private maskDeletedChatMessage(message: any) {
+        if (!message?.isDeletedForEveryone) {
+            return message;
+        }
+
+        return {
+            ...message,
+            message: null,
+            file_url: null,
+            file_name: null,
+            file_size: null,
+            file_mime_type: null,
+            durationSeconds: null,
+            waveform: null,
+            encryptionType: null,
+            encryptionVersion: null,
+            senderKeyId: null,
+            receiverKeyId: null,
+            nonce: null,
+        };
+    }
+
+    private attachPresence<T extends { id: string; lastSeenAt?: Date | string | null }>(user: T) {
+        const presence = this.socketRoomService?.getPresence
+            ? this.socketRoomService.getPresence(user.id, user.lastSeenAt)
+            : { isOnline: false, lastSeenAt: user.lastSeenAt ?? null };
+
+        return {
+            ...user,
+            isOnline: presence.isOnline,
+            lastSeenAt: presence.lastSeenAt,
+        };
     }
 
     /**

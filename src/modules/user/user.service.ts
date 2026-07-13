@@ -16,6 +16,7 @@ import otpEmailTemplate from "src/common/templates/emailVerification.template";
 import { QrCodeGeneratorProvider } from "./providers/qrCodeGenerator.provider";
 import { RatingService } from "../rating/rating.service";
 import { UserWhereInput } from "generated/prisma/models";
+import { SocketRoomService } from "../chat/services/socket-room.service";
 
 @Injectable()
 export class UserService {
@@ -26,7 +27,9 @@ export class UserService {
         private readonly smtpProvider: SMTPProvider,
         private readonly chatService: ChatService,
         private readonly qrCodeGenerator: QrCodeGeneratorProvider,
-        private readonly ratingService: RatingService
+        private readonly ratingService: RatingService,
+        @Inject('SOCKET_ROOM_SERVICE')
+        private readonly socketRoomService: SocketRoomService,
     ) { }
 
     /**
@@ -62,6 +65,14 @@ export class UserService {
     async findUserById(userId: string) {
         const user = await this.prismaService.user.findUnique({ where: { id: userId } });
         return user;
+    }
+
+    async updateLastSeenAt(userId: string, lastSeenAt = new Date()) {
+        return this.prismaService.user.update({
+            where: { id: userId },
+            data: { lastSeenAt },
+            select: { id: true, lastSeenAt: true },
+        });
     }
 
     /**
@@ -166,13 +177,41 @@ export class UserService {
             omit: { password: true, otp: true, otp_expires: true, otp_verification_token: true, name: true, email: true }
         });
 
+        const receiverIds = users.map((user) => user.id);
+        const sentMessageRequests = await this.prismaService.messageRequest.findMany({
+            where: {
+                senderId: userId,
+                receiverId: { in: receiverIds },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        const messageRequestByReceiverId = new Map(
+            sentMessageRequests.map((request) => [request.receiverId, request])
+        );
+        const presenceByUserId = this.socketRoomService.getPresenceMap(users);
+
         const mappedUsers = users.map(async user => {
 
             const existingRoom = await this.chatService.getChatRoomIfExist(userId, user.id)
+            const messageRequest = messageRequestByReceiverId.get(user.id) ?? null
+            const presence = presenceByUserId.get(user.id)
 
             return {
                 ...user,
+                isOnline: presence?.isOnline ?? false,
+                lastSeenAt: presence?.lastSeenAt ?? user.lastSeenAt ?? null,
                 existingRoom,
+                isMessageRequestSent: Boolean(messageRequest),
+                messageRequest: messageRequest ? {
+                    id: messageRequest.id,
+                    status: messageRequest.status,
+                    receiverId: messageRequest.receiverId,
+                    roomId: messageRequest.roomId,
+                    firstMessage: messageRequest.firstMessage,
+                    presetMessageId: messageRequest.presetMessageId,
+                    createdAt: messageRequest.createdAt,
+                    updatedAt: messageRequest.updatedAt,
+                } : null,
             }
         })
 
@@ -213,7 +252,8 @@ export class UserService {
                         id: true,
                         nick_name: true,
                         licence_id: true,
-                        avatar: true
+                        avatar: true,
+                        lastSeenAt: true
                     }
                 },
                 user2: {
@@ -221,7 +261,8 @@ export class UserService {
                         id: true,
                         nick_name: true,
                         licence_id: true,
-                        avatar: true
+                        avatar: true,
+                        lastSeenAt: true
                     }
                 },
                 chats: {
@@ -253,6 +294,7 @@ export class UserService {
 
             return {
                 ...otherUser,
+                ...this.buildPresenceFields(otherUser),
                 lastMessage: lastMessage ? {
                     message: lastMessage.message,
                     createdAt: lastMessage.createdAt,
@@ -266,6 +308,22 @@ export class UserService {
 
 
         return { previouslyMessagedUsers, totalChatRooms };
+    }
+
+    async getUsersPresence(userIds: string[]) {
+        const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+        const users = await this.prismaService.user.findMany({
+            where: { id: { in: uniqueUserIds } },
+            select: { id: true, lastSeenAt: true },
+        });
+        const presenceByUserId = this.socketRoomService.getPresenceMap(users);
+
+        return {
+            users: uniqueUserIds.map((userId) => {
+                const presence = presenceByUserId.get(userId);
+                return presence ?? { userId, isOnline: false, lastSeenAt: null };
+            }),
+        };
     }
 
     /**
@@ -761,6 +819,7 @@ export class UserService {
               id: true,
               nick_name: true,
               avatar: true,
+              lastSeenAt: true,
             },
             skip,
             take: paginationDto.limit,
@@ -778,7 +837,13 @@ export class UserService {
           }),
         ]);
         
-        return { users, total };
+        return {
+          users: users.map((user) => ({
+            ...user,
+            ...this.buildPresenceFields(user),
+          })),
+          total,
+        };
       }
     
       async searchUsersToAddToGroup(groupChatRoomId: string, userId: string, query: string, paginationDto: PaginationDto) {
@@ -965,6 +1030,14 @@ export class UserService {
         });
 
         return updatedUser;
+    }
+
+    private buildPresenceFields(user: { id: string; lastSeenAt?: Date | string | null }) {
+        const presence = this.socketRoomService.getPresence(user.id, user.lastSeenAt);
+        return {
+            isOnline: presence.isOnline,
+            lastSeenAt: presence.lastSeenAt,
+        };
     }
 }
 

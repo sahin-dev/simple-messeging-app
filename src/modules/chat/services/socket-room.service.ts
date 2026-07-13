@@ -12,6 +12,7 @@ export class SocketRoomService {
   private readonly logger = new Logger(SocketRoomService.name);
     @WebSocketServer()
     private server?: Server
+  private readonly onlineUsers = new Map<string, Set<string>>();
   constructor(
    
    
@@ -23,6 +24,50 @@ export class SocketRoomService {
    */
   setServer(server: Server): void {
     this.server = server;
+  }
+
+  markUserConnected(userId: string, socketId: string): boolean {
+    const sockets = this.onlineUsers.get(userId) ?? new Set<string>();
+    const wasOffline = sockets.size === 0;
+
+    sockets.add(socketId);
+    this.onlineUsers.set(userId, sockets);
+
+    return wasOffline;
+  }
+
+  markUserDisconnected(userId: string, socketId: string): boolean {
+    const sockets = this.onlineUsers.get(userId);
+
+    if (!sockets) {
+      return true;
+    }
+
+    sockets.delete(socketId);
+
+    if (sockets.size === 0) {
+      this.onlineUsers.delete(userId);
+      return true;
+    }
+
+    this.onlineUsers.set(userId, sockets);
+    return false;
+  }
+
+  getOnlineUserIds(): string[] {
+    return [...this.onlineUsers.keys()];
+  }
+
+  getPresence(userId: string, lastSeenAt?: Date | string | null) {
+    return {
+      userId,
+      isOnline: this.onlineUsers.has(userId),
+      lastSeenAt: this.onlineUsers.has(userId) ? null : (lastSeenAt ?? null),
+    };
+  }
+
+  getPresenceMap(users: Array<{ id: string; lastSeenAt?: Date | string | null }>) {
+    return new Map(users.map((user) => [user.id, this.getPresence(user.id, user.lastSeenAt)]));
   }
 
   /**
@@ -45,6 +90,10 @@ export class SocketRoomService {
    * @returns true if the user has at least one active socket connection
    */
   async isUserConnected(userId: string): Promise<boolean> {
+    if (this.onlineUsers.has(userId)) {
+      return true;
+    }
+
     if (!this.server) {
       return false;
     }
