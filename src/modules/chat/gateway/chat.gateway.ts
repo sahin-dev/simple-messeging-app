@@ -19,6 +19,8 @@ import { UpdateGroupChatRoomDto } from "src/modules/group-chat/dtos/update-group
 import { AddGroupMembersDto } from "src/modules/group-chat/dtos/add-group-members.dto";
 import { PaginationDto } from "src/modules/group-chat/dtos/pagination.dto";
 import { SocketRoomService } from "../services/socket-room.service";
+import { MongoIdValidationPipe } from "src/common/pipes/mongo-id-validation.pipe";
+import { isValidMongoId } from "src/common/utils/mongo-id.util";
 
 
 @WebSocketGateway({
@@ -27,6 +29,7 @@ import { SocketRoomService } from "../services/socket-room.service";
     }
 })
 @UsePipes(
+    new MongoIdValidationPipe(),
     new ValidationPipe({
         transform: true,
         whitelist: true,
@@ -142,6 +145,12 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
                 return
             }
 
+            if (!isValidMongoId(userId)) {
+                client.emit(EMIT_EVENTS.ERROR, { message: "userId must be a valid MongoDB ObjectId" })
+                client.disconnect()
+                return
+            }
+
             const user = await this.userService.findUserById(userId)
 
             if (!user) {
@@ -224,6 +233,7 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
                             // Notify sender that message was delivered
                             this.server.to(this.generateUserRoomId(chat.sender_id)).emit(EMIT_EVENTS.MESSAGE_DELIVERED, chat)
                         }
+                        
                     } catch (innerErr: any) {
                         console.error(`Error acknowledging message ${messageId}:`, innerErr);
                     }
