@@ -3947,7 +3947,7 @@
             "url": "{{baseUrl}}/parking-report/spot",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"latitude\": 23.7806,\n  \"longitude\": 90.4074,\n  \"parking_cost\": \"FREE\",\n  \"electric_charging\": false,\n  \"disabled_facility\": false\n}"
+              "raw": "{\n  \"latitude\": 23.7806,\n  \"longitude\": 90.4074,\n  \"electric_charging\": false,\n  \"disabled_facility\": false\n}"
             }
           },
           "response": [

@@ -8,8 +8,9 @@ export class CreateParkingSpotDto {
   @IsNumber()
   longitude: number;
 
+  @IsOptional()
   @IsEnum(ParkingCost)
-  parking_cost: ParkingCost;
+  parking_cost?: ParkingCost;
 
   @IsBoolean()
   electric_charging: boolean;
