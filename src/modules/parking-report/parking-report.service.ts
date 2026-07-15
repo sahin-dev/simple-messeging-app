@@ -380,7 +380,7 @@ export class ParkingReportService {
 
   // ---------- Parking Spot Service Methods ----------
   async createParkingSpot(userId: string, createParkingSpotDto: CreateParkingSpotDto) {
-    let finalParkingCost = createParkingSpotDto.parking_cost;
+    let finalParkingCost = createParkingSpotDto.parking_cost ?? ParkingCost.FREE;
     if (createParkingSpotDto.disabled_facility) {
       finalParkingCost = ParkingCost.FREE;
     }
