@@ -266,8 +266,29 @@ export class ParkRelayService {
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
   }
 
+  async getHandoffById(handoffId: string) {
+    await this.expireOldHandoffs();
+
+    const handoff = await this.prismaService.parkingHandoff.findUnique({
+      where: { id: handoffId },
+    });
+
+    if (!handoff) {
+      throw new NotFoundException('Parking handoff not found');
+    }
+
+    return {
+      ...handoff,
+      googleMapsLink: this.buildGoogleMapsLink(handoff.latitude, handoff.longitude, 'driving'),
+    };
+  }
+
   async saveParkingLocation(userId: string, dto: SaveParkingLocationDto) {
     this.validateCoordinates(dto.latitude, dto.longitude);
+
+    if (dto.parkingType === ParkingCost.PAID && (!dto.durationMin || dto.durationMin <= 0)) {
+      throw new BadRequestException('durationMin is required for paid parking sessions');
+    }
 
     const saved = await this.prismaService.savedParkingLocation.upsert({
       where: { userId },
@@ -288,13 +309,26 @@ export class ParkRelayService {
       },
     });
 
+    const parkingSession =
+      dto.parkingType === ParkingCost.PAID
+        ? await this.createParkingSession(userId, {
+            latitude: dto.latitude,
+            longitude: dto.longitude,
+            costType: ParkingCost.PAID,
+            durationMin: dto.durationMin,
+          })
+        : null;
+
     return {
       ...saved,
       googleMapsWalkingLink: this.buildGoogleMapsLink(saved.latitude, saved.longitude, 'walking'),
+      parkingSession,
     };
   }
 
   async getSavedParkingLocation(userId: string) {
+    await this.expireParkingSessions();
+
     const saved = await this.prismaService.savedParkingLocation.findUnique({
       where: { userId },
     });
@@ -303,9 +337,99 @@ export class ParkRelayService {
       throw new NotFoundException('Saved parking location not found');
     }
 
+    const parkingSession = await this.prismaService.parkingSession.findFirst({
+      where: { userId, status: 'ACTIVE' },
+      orderBy: { createdAt: 'desc' },
+    });
+
     return {
       ...saved,
       googleMapsWalkingLink: this.buildGoogleMapsLink(saved.latitude, saved.longitude, 'walking'),
+      parkingSession: parkingSession
+        ? {
+            ...parkingSession,
+            googleMapsWalkingLink: this.buildGoogleMapsLink(
+              parkingSession.latitude,
+              parkingSession.longitude,
+              'walking',
+            ),
+          }
+        : null,
+    };
+  }
+
+  async getAllSavedParkingLocations(page = 1, limit = 20) {
+    await this.expireParkingSessions();
+
+    const normalizedPage = Math.max(Number(page) || 1, 1);
+    const normalizedLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const skip = (normalizedPage - 1) * normalizedLimit;
+
+    const [locations, total] = await Promise.all([
+      this.prismaService.savedParkingLocation.findMany({
+        skip,
+        take: normalizedLimit,
+        orderBy: { updatedAt: 'desc' },
+      }),
+      this.prismaService.savedParkingLocation.count(),
+    ]);
+
+    const userIds = [...new Set(locations.map((location) => location.userId))];
+    const users = await this.prismaService.user.findMany({
+      where: { id: { in: userIds } },
+      select: {
+        id: true,
+        name: true,
+        nick_name: true,
+        email: true,
+        avatar: true,
+        is_blocked: true,
+        is_deleted: true,
+      },
+    });
+    const usersById = new Map(users.map((user) => [user.id, user]));
+    const parkingSessions = await this.prismaService.parkingSession.findMany({
+      where: {
+        userId: { in: userIds },
+        status: 'ACTIVE',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const parkingSessionsByUserId = new Map<string, (typeof parkingSessions)[number]>();
+    parkingSessions.forEach((session) => {
+      if (!parkingSessionsByUserId.has(session.userId)) {
+        parkingSessionsByUserId.set(session.userId, session);
+      }
+    });
+
+    return {
+      locations: locations.map((location) => {
+        const parkingSession = parkingSessionsByUserId.get(location.userId);
+
+        return {
+          ...location,
+          user: usersById.get(location.userId) ?? null,
+          googleMapsWalkingLink: this.buildGoogleMapsLink(
+            location.latitude,
+            location.longitude,
+            'walking',
+          ),
+          parkingSession: parkingSession
+            ? {
+                ...parkingSession,
+                googleMapsWalkingLink: this.buildGoogleMapsLink(
+                  parkingSession.latitude,
+                  parkingSession.longitude,
+                  'walking',
+                ),
+              }
+            : null,
+        };
+      }),
+      total,
+      page: normalizedPage,
+      limit: normalizedLimit,
+      totalPages: Math.ceil(total / normalizedLimit),
     };
   }
 

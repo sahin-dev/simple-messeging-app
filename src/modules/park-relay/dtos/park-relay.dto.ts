@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Min,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
@@ -59,6 +60,15 @@ export class SaveParkingLocationDto extends ParkingCoordinatesDto {
   @IsOptional()
   @IsEnum(ParkingSaveSourceDto)
   source?: ParkingSaveSourceDto;
+
+  @IsEnum(ParkingCost)
+  parkingType: ParkingCost;
+
+  @ValidateIf((dto) => dto.parkingType === ParkingCost.PAID)
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  durationMin?: number;
 }
 
 export class CreateParkingSessionDto extends ParkingCoordinatesDto {

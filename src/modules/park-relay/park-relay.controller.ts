@@ -118,6 +118,13 @@ export class ParkRelayController {
     );
   }
 
+  @Get('handoffs/:id')
+  @HttpCode(200)
+  @ResponseMessage('Parking handoff fetched successfully')
+  async getHandoffById(@Param('id') handoffId: string) {
+    return this.parkRelayService.getHandoffById(handoffId);
+  }
+
   @Post('saved-parking')
   @HttpCode(200)
   @ResponseMessage('Parking location saved successfully')
@@ -133,6 +140,17 @@ export class ParkRelayController {
   @ResponseMessage('Saved parking location fetched successfully')
   async getSavedParkingLocation(@GetUser('id') userId: string) {
     return this.parkRelayService.getSavedParkingLocation(userId);
+  }
+
+  @Get('admin/saved-parking')
+  @HttpCode(200)
+  @Roles(UserRole.ADMIN)
+  @ResponseMessage('Saved parking locations fetched successfully')
+  async getAllSavedParkingLocations(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ) {
+    return this.parkRelayService.getAllSavedParkingLocations(page, limit);
   }
 
   @Delete('saved-parking/me')
