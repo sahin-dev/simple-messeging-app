@@ -2,6 +2,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsDateString,
   IsEnum,
   IsNumber,
   IsOptional,
@@ -61,14 +62,28 @@ export class SaveParkingLocationDto extends ParkingCoordinatesDto {
   @IsEnum(ParkingSaveSourceDto)
   source?: ParkingSaveSourceDto;
 
+  @IsOptional()
   @IsEnum(ParkingCost)
-  parkingType: ParkingCost;
+  parkingType?: ParkingCost;
 
   @ValidateIf((dto) => dto.parkingType === ParkingCost.PAID)
   @Type(() => Number)
   @IsNumber()
   @Min(1)
   durationMin?: number;
+
+  @ValidateIf((dto) => dto.parkingType === ParkingCost.PAID)
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @IsOptional()
+  @IsString()
+  photoUrl?: string;
 }
 
 export class CreateParkingSessionDto extends ParkingCoordinatesDto {
@@ -80,8 +95,37 @@ export class CreateParkingSessionDto extends ParkingCoordinatesDto {
   costType: ParkingCost;
 
   @ValidateIf((dto) => dto.costType === ParkingCost.PAID)
+  @IsOptional()
   @IsNumber()
   durationMin?: number;
+
+  @ValidateIf((dto) => dto.costType === ParkingCost.PAID)
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
+}
+
+export class ParkedEventDto extends SaveParkingLocationDto {
+  @IsOptional()
+  @IsBoolean()
+  createPaidParkingPrompt?: boolean;
+}
+
+export class AnswerPaidParkingPromptDto {
+  @IsEnum(ParkingCost)
+  parkingType: ParkingCost;
+
+  @ValidateIf((dto) => dto.parkingType === ParkingCost.PAID)
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  durationMin?: number;
+
+  @ValidateIf((dto) => dto.parkingType === ParkingCost.PAID)
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
 }
 
 export class ParkingAreaPointDto extends ParkingCoordinatesDto {}

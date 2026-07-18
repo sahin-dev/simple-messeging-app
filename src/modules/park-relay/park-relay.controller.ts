@@ -15,9 +15,11 @@ import { ResponseMessage } from 'src/common/decorators/apiResponseMessage.decora
 import { UserRole } from 'generated/prisma/enums';
 import { ParkRelayService } from './park-relay.service';
 import {
+  AnswerPaidParkingPromptDto,
   CreateParkingAreaDto,
   CreateParkingHandoffDto,
   CreateParkingSessionDto,
+  ParkedEventDto,
   SaveParkingLocationDto,
   SearchParkingAreaDto,
   SubmitParkingAreaPointDto,
@@ -103,6 +105,16 @@ export class ParkRelayController {
     return this.parkRelayService.markHandoffOccupied(userId, handoffId);
   }
 
+  @Post('handoffs/:id/found')
+  @HttpCode(200)
+  @ResponseMessage('Parking handoff marked found successfully')
+  async markHandoffFound(
+    @GetUser('id') userId: string,
+    @Param('id') handoffId: string,
+  ) {
+    return this.parkRelayService.markHandoffFound(userId, handoffId);
+  }
+
   @Get('handoffs/nearby')
   @HttpCode(200)
   @ResponseMessage('Nearby parking handoffs fetched successfully')
@@ -145,11 +157,60 @@ export class ParkRelayController {
     return this.parkRelayService.saveParkingLocation(userId, dto);
   }
 
+  @Post('parked-event')
+  @HttpCode(200)
+  @ResponseMessage('Parked event processed successfully')
+  async processParkedEvent(
+    @GetUser('id') userId: string,
+    @Body() dto: ParkedEventDto,
+  ) {
+    return this.parkRelayService.processParkedEvent(userId, dto);
+  }
+
   @Get('saved-parking/me')
   @HttpCode(200)
   @ResponseMessage('Saved parking location fetched successfully')
   async getSavedParkingLocation(@GetUser('id') userId: string) {
     return this.parkRelayService.getSavedParkingLocation(userId);
+  }
+
+  @Get('saved-parking/history')
+  @HttpCode(200)
+  @ResponseMessage('Saved parking history fetched successfully')
+  async getSavedParkingHistory(
+    @GetUser('id') userId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ) {
+    return this.parkRelayService.getSavedParkingHistory(userId, page, limit);
+  }
+
+  @Get('paid-parking-prompt/me')
+  @HttpCode(200)
+  @ResponseMessage('Pending paid parking prompt fetched successfully')
+  async getPendingPaidParkingPrompt(@GetUser('id') userId: string) {
+    return this.parkRelayService.getPendingPaidParkingPrompt(userId);
+  }
+
+  @Post('paid-parking-prompt/:id/answer')
+  @HttpCode(200)
+  @ResponseMessage('Paid parking prompt answered successfully')
+  async answerPaidParkingPrompt(
+    @GetUser('id') userId: string,
+    @Param('id') promptId: string,
+    @Body() dto: AnswerPaidParkingPromptDto,
+  ) {
+    return this.parkRelayService.answerPaidParkingPrompt(userId, promptId, dto);
+  }
+
+  @Post('paid-parking-prompt/:id/dismiss')
+  @HttpCode(200)
+  @ResponseMessage('Paid parking prompt dismissed successfully')
+  async dismissPaidParkingPrompt(
+    @GetUser('id') userId: string,
+    @Param('id') promptId: string,
+  ) {
+    return this.parkRelayService.dismissPaidParkingPrompt(userId, promptId);
   }
 
   @Get('admin/saved-parking')

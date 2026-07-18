@@ -228,6 +228,18 @@ async function seedParkData() {
     },
   });
 
+  await prisma.paidParkingPrompt.deleteMany({
+    where: {
+      userId: { in: userIds },
+    },
+  });
+
+  await prisma.savedParkingLocation.deleteMany({
+    where: {
+      userId: { in: userIds },
+    },
+  });
+
   await prisma.parkingArea.deleteMany({
     where: {
       name: {
@@ -236,42 +248,29 @@ async function seedParkData() {
     },
   });
 
-  await prisma.savedParkingLocation.upsert({
-    where: { userId: releaser.id },
-    create: {
+  await prisma.savedParkingLocation.createMany({
+    data: [
+      {
       userId: releaser.id,
       latitude: 23.7806,
       longitude: 90.4074,
       accuracy: 6,
       confidence: 0.93,
       source: 'AUTO',
+      isActive: true,
+      parkingType: 'FREE',
     },
-    update: {
-      latitude: 23.7806,
-      longitude: 90.4074,
-      accuracy: 6,
-      confidence: 0.93,
-      source: 'AUTO',
-    },
-  });
-
-  await prisma.savedParkingLocation.upsert({
-    where: { userId: seeker.id },
-    create: {
+    {
       userId: seeker.id,
       latitude: 23.781,
       longitude: 90.4078,
       accuracy: 12,
       confidence: 0.71,
       source: 'MANUAL',
+      isActive: true,
+      parkingType: 'FREE',
     },
-    update: {
-      latitude: 23.781,
-      longitude: 90.4078,
-      accuracy: 12,
-      confidence: 0.71,
-      source: 'MANUAL',
-    },
+    ],
   });
 
   const activeHandoff = await prisma.parkingHandoff.create({
