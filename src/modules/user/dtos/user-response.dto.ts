@@ -1,6 +1,14 @@
 import { Expose, Transform } from "class-transformer";
 import { UserRole } from "generated/prisma/enums";
 
+export class AuthMeDocumentDto {
+    @Expose()
+    document_type: string
+
+    @Expose()
+    daysUntilExpiry: number
+}
+
 export class UserResponseDto {
 
     @Expose()
@@ -125,4 +133,7 @@ export class UserResponseDto {
 
     @Expose()
     lastSeenAt?: Date | string | null
+
+    @Expose()
+    documents?: AuthMeDocumentDto[]
 }

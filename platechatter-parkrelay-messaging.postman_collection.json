@@ -82,6 +82,11 @@
       "type": "string"
     },
     {
+      "key": "faqId",
+      "value": "6a5200126980adf5514a6012",
+      "type": "string"
+    },
+    {
       "key": "supportTicketId",
       "value": "6a5200116980adf5514a6011",
       "type": "string"
@@ -5569,6 +5574,162 @@
               ],
               "cookie": [],
               "body": "{\n    \"message\": \"Blacklisted word deleted successfully\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FAQs",
+      "item": [
+        {
+          "name": "Create FAQ",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/faqs",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"How do I start a chat with another driver?\",\n  \"description\": \"Search by license plate or nickname, open the driver profile, and send a message request.\"\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "Create FAQ - 201",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"id\": \"6a5200126980adf5514a6012\",\n    \"title\": \"How do I start a chat with another driver?\",\n    \"description\": \"Search by license plate or nickname, open the driver profile, and send a message request. Once the request is accepted, you can continue the conversation from your messages.\",\n    \"createdAt\": \"2026-07-18T06:30:00.000Z\",\n    \"updatedAt\": \"2026-07-18T06:30:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get FAQs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/faqs?page=1&limit=10"
+          },
+          "response": [
+            {
+              "name": "Get FAQs - 200",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"faqs\": [\n        {\n            \"id\": \"6a5200126980adf5514a6012\",\n            \"title\": \"How do I start a chat with another driver?\",\n            \"description\": \"Search by license plate or nickname, open the driver profile, and send a message request. Once the request is accepted, you can continue the conversation from your messages.\",\n            \"createdAt\": \"2026-07-18T06:30:00.000Z\",\n            \"updatedAt\": \"2026-07-18T06:30:00.000Z\"\n        }\n    ],\n    \"totalFaqs\": 5,\n    \"page\": 1,\n    \"limit\": 10,\n    \"totalPages\": 1\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get FAQ By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/faqs/{{faqId}}"
+          },
+          "response": [
+            {
+              "name": "Get FAQ By ID - 200",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"id\": \"6a5200126980adf5514a6012\",\n    \"title\": \"How do I start a chat with another driver?\",\n    \"description\": \"Search by license plate or nickname, open the driver profile, and send a message request. Once the request is accepted, you can continue the conversation from your messages.\",\n    \"createdAt\": \"2026-07-18T06:30:00.000Z\",\n    \"updatedAt\": \"2026-07-18T06:30:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update FAQ",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/faqs/{{faqId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"How do I update my vehicle information?\",\n  \"description\": \"Open your profile settings and update your vehicle type, model, color, and location information.\"\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "Update FAQ - 200",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"id\": \"6a5200126980adf5514a6012\",\n    \"title\": \"How do I update my vehicle information?\",\n    \"description\": \"Open your profile settings and update your vehicle type, model, color, and location information.\",\n    \"createdAt\": \"2026-07-18T06:30:00.000Z\",\n    \"updatedAt\": \"2026-07-18T06:45:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete FAQ",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/faqs/{{faqId}}"
+          },
+          "response": [
+            {
+              "name": "Delete FAQ - 200",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"message\": \"Faq deleted successfully\"\n}"
             }
           ]
         }

@@ -23,6 +23,7 @@ import { BlacklistedwordModule } from './modules/blacklistedword/blacklistedword
 import mailerConfig from './config/mailer.config';
 import firebaseConfig from './config/firebase.config';
 import appleConfig from './config/apple.config';
+import { FaqModule } from './modules/faq/faq.module';
 
 import { HelpSupportModule } from './modules/help-support/help-support.module';
 
@@ -44,6 +45,7 @@ import { HelpSupportModule } from './modules/help-support/help-support.module';
     NotificationModule,
     BlacklistedwordModule,
     UserDocumentModule,
+    FaqModule,
     HelpSupportModule,
     ParkRelayModule,
   ],
