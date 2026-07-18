@@ -24,6 +24,7 @@ import { GoogleSigninDto } from "./dtos/google-signin.dto";
 import { CheckAuthAvailabilityDto } from "./dtos/check-auth-availability.dto";
 import { AppleSigninDto } from "./dtos/apple-signin.dto";
 import { GoogleAuthStatusDto } from "./dtos/google-auth-status.dto";
+import { UserDocumentService } from "../user-document/services/user-document.service";
 
 type AppleJwtHeader = {
     alg?: string;
@@ -66,7 +67,8 @@ export class AuthService {
         @Inject(appleConfigType.KEY)
         private readonly appleConfig: ConfigType<typeof appleConfigType>,
         private readonly smtpProvider: SMTPProvider,
-        private readonly ratingService: RatingService
+        private readonly ratingService: RatingService,
+        private readonly userDocumentService: UserDocumentService
     ) { }
 
     /**
@@ -729,14 +731,18 @@ export class AuthService {
      * @returns 
      */
     async getAuthenticatedUser(userId: string) {
-        const userDetails = await this.userService.findUserById(userId);
-        const ratingInfo = await this.ratingService.getAverageRatingForUser(userId);
+        const [userDetails, ratingInfo, documents] = await Promise.all([
+            this.userService.findUserById(userId),
+            this.ratingService.getAverageRatingForUser(userId),
+            this.userDocumentService.getUserDocumentExpirySummaries(userId),
+        ]);
 
         return {
             ...userDetails,
             rating: ratingInfo.averageRating,
             totalRating: ratingInfo.totalRatings,
-            totalRatings: ratingInfo.totalRatings
+            totalRatings: ratingInfo.totalRatings,
+            documents,
         };
     }
 

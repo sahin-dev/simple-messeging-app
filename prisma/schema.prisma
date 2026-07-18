@@ -358,6 +358,18 @@ model BlackListedWord {
   @@map("blacklisted_words")
 }
 
+model Faq {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+  @@map("faqs")
+}
+
 model ParkingReport {
   id                         String                    @id @default(auto()) @map("_id") @db.ObjectId
   user_id                    String                    @db.ObjectId

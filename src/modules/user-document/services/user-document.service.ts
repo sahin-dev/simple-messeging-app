@@ -99,6 +99,25 @@ export class UserDocumentService {
   }
 
   /**
+   * Get document type and days left for auth/me.
+   */
+  async getUserDocumentExpirySummaries(userId: string) {
+    const documents = await this.prismaService.userDocument.findMany({
+      where: { user_id: userId },
+      select: {
+        document_type: true,
+        expiry_date: true,
+      },
+      orderBy: { expiry_date: 'asc' },
+    });
+
+    return documents.map((document) => ({
+      document_type: document.document_type,
+      daysUntilExpiry: this.getDaysUntilExpiry(document.expiry_date),
+    }));
+  }
+
+  /**
    * Get a specific document
    */
   async getDocumentById(documentId: string, userId: string) {

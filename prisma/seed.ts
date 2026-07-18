@@ -73,6 +73,29 @@ const demoUsers = [
   },
 ] as const;
 
+const sampleFaqs = [
+  {
+    title: 'How do I start a chat with another driver?',
+    description: 'Search by license plate or nickname, open the driver profile, and send a message request. Once the request is accepted, you can continue the conversation from your messages.',
+  },
+  {
+    title: 'How do parking availability alerts work?',
+    description: 'When nearby users report or release parking, PLATEChatter can notify drivers searching in that area based on their notification preferences and location radius.',
+  },
+  {
+    title: 'Why should I upload vehicle documents?',
+    description: 'Vehicle documents help verify your account and improve trust with other drivers. Admins review submitted documents before marking them as verified.',
+  },
+  {
+    title: 'Can I block another user?',
+    description: 'Yes. You can block a user from their profile or conversation. Blocked users cannot continue direct messaging with you.',
+  },
+  {
+    title: 'How do I update my vehicle information?',
+    description: 'Open your profile settings and update your vehicle type, model, color, and location information. Keeping this information current helps other drivers identify the right vehicle.',
+  },
+] as const;
+
 async function upsertDemoUsers(password: string) {
   const users: any[] = [];
 
@@ -169,6 +192,23 @@ async function upsertDemoUsers(password: string) {
     seeker: users[1],
     admin: users[2],
   };
+}
+
+async function seedFaqData() {
+  await prisma.faq.deleteMany({
+    where: {
+      title: {
+        in: sampleFaqs.map((faq) => faq.title),
+      },
+    },
+  });
+
+  await prisma.faq.createMany({
+    data: sampleFaqs.map((faq) => ({
+      title: faq.title,
+      description: faq.description,
+    })),
+  });
 }
 
 async function seedParkData() {
@@ -314,7 +354,10 @@ async function seedParkData() {
     },
   });
 
+  await seedFaqData();
+
   console.log('Park seed completed.');
+  console.log(`Seeded ${sampleFaqs.length} sample FAQs.`);
   console.table([
     { label: 'releaserUserId', value: releaser.id },
     { label: 'seekerUserId', value: seeker.id },
