@@ -13,10 +13,12 @@ import { NotificationEventTypeEnum } from '../notification/dtos/notification-eve
 import { FireBaseClient } from '../notification/providers/firebase.provider';
 import { ParkingCost } from 'src/common/enums';
 import {
+  AnswerPaidParkingPromptDto,
   CreateParkingAreaDto,
   CreateParkingHandoffDto,
   CreateParkingSessionDto,
   ParkingSaveSourceDto,
+  ParkedEventDto,
   SaveParkingLocationDto,
   SearchParkingAreaDto,
   SubmitParkingAreaPointDto,
@@ -28,10 +30,13 @@ import {
 export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ParkRelayService.name);
   private readonly HANDOFF_WINDOW_MINUTES = 5;
+  private readonly ACCEPTED_HANDOFF_WINDOW_MINUTES = 5;
   private readonly HANDOFF_RADIUS_METERS = 300;
   private readonly PARKING_EXPIRY_WARNING_MINUTES = 10;
   private readonly HANDOFF_CLEANUP_INTERVAL_MS = 60 * 1000;
+  private readonly PARKING_EXPIRY_INTERVAL_MS = 60 * 1000;
   private handoffCleanupTimer?: NodeJS.Timeout;
+  private parkingExpiryTimer?: NodeJS.Timeout;
 
   constructor(
     private readonly prismaService: PrismaService,
@@ -54,11 +59,28 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
         `Failed to run initial expired parking handoff cleanup: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
+
+    this.parkingExpiryTimer = setInterval(() => {
+      this.dispatchParkingExpiryWarnings().catch((error) => {
+        this.logger.error(
+          `Failed to dispatch parking expiry warnings: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+    }, this.PARKING_EXPIRY_INTERVAL_MS);
+
+    this.dispatchParkingExpiryWarnings().catch((error) => {
+      this.logger.error(
+        `Failed to run initial parking expiry warning dispatch: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
   }
 
   onModuleDestroy() {
     if (this.handoffCleanupTimer) {
       clearInterval(this.handoffCleanupTimer);
+    }
+    if (this.parkingExpiryTimer) {
+      clearInterval(this.parkingExpiryTimer);
     }
   }
 
@@ -133,21 +155,22 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     await this.assertNoUnexpiredHandoff(userId);
 
     const expiresAt = new Date(Date.now() + this.HANDOFF_WINDOW_MINUTES * 60 * 1000);
+    const approximateLocation = this.buildApproximateLocation(dto.latitude, dto.longitude);
     const handoff = await this.prismaService.parkingHandoff.create({
       data: {
         releaserId: userId,
         spotId: dto.spotId,
         latitude: dto.latitude,
         longitude: dto.longitude,
+        approxLatitude: approximateLocation.latitude,
+        approxLongitude: approximateLocation.longitude,
         expiresAt,
         status: 'AVAILABLE',
       },
     });
 
-    await this.markParked(userId, {
-      latitude: dto.latitude,
-      longitude: dto.longitude,
-    });
+    await this.setIdle(userId);
+    await this.closeActiveParkingForUser(userId);
 
     const seekers = await this.findActiveSeekers(dto.latitude, dto.longitude, userId);
     await Promise.all(
@@ -161,7 +184,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       windowSeconds: this.HANDOFF_WINDOW_MINUTES * 60,
       radiusMeters: this.HANDOFF_RADIUS_METERS,
       notifiedSeekers: seekers.length,
-      googleMapsLink: this.buildGoogleMapsLink(dto.latitude, dto.longitude, 'driving'),
+      approximateLocation,
     };
   }
 
@@ -199,6 +222,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
         seekerId: userId,
         status: 'ACCEPTED',
         acceptedAt: new Date(),
+        expiresAt: new Date(Date.now() + this.ACCEPTED_HANDOFF_WINDOW_MINUTES * 60 * 1000),
       },
     });
 
@@ -206,17 +230,13 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Parking handoff is no longer available');
     }
 
-    await this.markParked(userId, {
-      latitude: handoff.latitude,
-      longitude: handoff.longitude,
-    });
-
     const accepted = await this.prismaService.parkingHandoff.findUnique({
       where: { id: handoffId },
     });
 
     return {
       ...accepted,
+      secondsAddedAfterAcceptance: this.ACCEPTED_HANDOFF_WINDOW_MINUTES * 60,
       googleMapsLink: this.buildGoogleMapsLink(handoff.latitude, handoff.longitude, 'driving'),
     };
   }
@@ -238,6 +258,8 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Only available handoffs can be cancelled');
     }
 
+    await this.updateParkRelayReputation(handoff.releaserId, 'cancelled');
+
     return this.prismaService.parkingHandoff.update({
       where: { id: handoffId },
       data: {
@@ -256,17 +278,55 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundException('Parking handoff not found');
     }
 
-    if (handoff.releaserId !== userId && handoff.seekerId !== userId) {
-      throw new BadRequestException('You are not part of this parking handoff');
+    if (handoff.seekerId !== userId) {
+      throw new BadRequestException('Only the accepted seeker can mark this parking handoff occupied');
     }
 
-    return this.prismaService.parkingHandoff.update({
+    if (handoff.status !== 'ACCEPTED') {
+      throw new BadRequestException('Only accepted parking handoffs can be marked occupied');
+    }
+
+    const updated = await this.prismaService.parkingHandoff.update({
       where: { id: handoffId },
       data: {
         status: 'OCCUPIED',
         occupiedAt: new Date(),
       },
     });
+
+    await this.updateParkRelayReputation(handoff.releaserId, 'occupied');
+
+    return updated;
+  }
+
+  async markHandoffFound(userId: string, handoffId: string) {
+    const handoff = await this.prismaService.parkingHandoff.findUnique({
+      where: { id: handoffId },
+    });
+
+    if (!handoff) {
+      throw new NotFoundException('Parking handoff not found');
+    }
+
+    if (handoff.seekerId !== userId) {
+      throw new BadRequestException('Only the accepted seeker can mark this parking handoff found');
+    }
+
+    if (handoff.status !== 'ACCEPTED') {
+      throw new BadRequestException('Only accepted parking handoffs can be marked found');
+    }
+
+    const updated = await this.prismaService.parkingHandoff.update({
+      where: { id: handoffId },
+      data: {
+        status: 'FOUND',
+        foundAt: new Date(),
+      },
+    });
+
+    await this.updateParkRelayReputation(handoff.releaserId, 'found');
+
+    return updated;
   }
 
   async getNearbyHandoffs(latitude: number, longitude: number, radiusMeters = this.HANDOFF_RADIUS_METERS) {
@@ -283,7 +343,14 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
 
     return handoffs
       .map((handoff) => ({
-        ...handoff,
+        id: handoff.id,
+        status: handoff.status,
+        expiresAt: handoff.expiresAt,
+        createdAt: handoff.createdAt,
+        updatedAt: handoff.updatedAt,
+        latitude: handoff.approxLatitude ?? this.buildApproximateLocation(handoff.latitude, handoff.longitude).latitude,
+        longitude: handoff.approxLongitude ?? this.buildApproximateLocation(handoff.latitude, handoff.longitude).longitude,
+        hasExactLocation: false,
         distanceMeters: Math.round(
           this.geolocationService.calculateDistance(
             latitude,
@@ -292,7 +359,6 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
             handoff.longitude,
           ),
         ),
-        googleMapsLink: this.buildGoogleMapsLink(handoff.latitude, handoff.longitude, 'driving'),
       }))
       .filter((handoff) => handoff.distanceMeters <= radiusMeters)
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
@@ -326,36 +392,65 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
         )
       : null;
 
+    const canSeeExactLocation = this.canSeeExactHandoffLocation(handoff, userId);
+    const approximateLocation = this.getHandoffApproximateLocation(handoff);
+    const responseLatitude = canSeeExactLocation ? handoff.latitude : approximateLocation.latitude;
+    const responseLongitude = canSeeExactLocation ? handoff.longitude : approximateLocation.longitude;
+
     return {
-      ...handoff,
+      id: handoff.id,
+      releaserId: handoff.releaserId,
+      seekerId: handoff.seekerId,
+      spotId: handoff.spotId,
+      status: handoff.status,
+      expiresAt: handoff.expiresAt,
+      acceptedAt: handoff.acceptedAt,
+      cancelledAt: handoff.cancelledAt,
+      foundAt: handoff.foundAt,
+      occupiedAt: handoff.occupiedAt,
+      createdAt: handoff.createdAt,
+      updatedAt: handoff.updatedAt,
+      latitude: responseLatitude,
+      longitude: responseLongitude,
+      hasExactLocation: canSeeExactLocation,
       distanceMeters,
-      googleMapsLink: this.buildGoogleMapsLink(handoff.latitude, handoff.longitude, 'driving'),
+      googleMapsLink: canSeeExactLocation
+        ? this.buildGoogleMapsLink(handoff.latitude, handoff.longitude, 'driving')
+        : null,
     };
   }
 
-  async saveParkingLocation(userId: string, dto: SaveParkingLocationDto) {
+  async saveParkingLocation(
+    userId: string,
+    dto: SaveParkingLocationDto,
+    createPaidParkingPrompt = true,
+  ) {
     this.validateCoordinates(dto.latitude, dto.longitude);
 
-    if (dto.parkingType === ParkingCost.PAID && (!dto.durationMin || dto.durationMin <= 0)) {
-      throw new BadRequestException('durationMin is required for paid parking sessions');
-    }
+    const paidExpiresAt = this.resolvePaidParkingExpiry(
+      dto.parkingType,
+      dto.durationMin,
+      dto.expiresAt,
+    );
 
-    const saved = await this.prismaService.savedParkingLocation.upsert({
-      where: { userId },
-      create: {
+    await this.prismaService.savedParkingLocation.updateMany({
+      where: { userId, isActive: true },
+      data: { isActive: false },
+    });
+
+    const saved = await this.prismaService.savedParkingLocation.create({
+      data: {
         userId,
         latitude: dto.latitude,
         longitude: dto.longitude,
         accuracy: dto.accuracy,
         confidence: dto.confidence,
         source: dto.source ?? ParkingSaveSourceDto.MANUAL,
-      },
-      update: {
-        latitude: dto.latitude,
-        longitude: dto.longitude,
-        accuracy: dto.accuracy,
-        confidence: dto.confidence,
-        source: dto.source ?? ParkingSaveSourceDto.MANUAL,
+        note: dto.note,
+        photoUrl: dto.photoUrl,
+        isActive: true,
+        parkingType: dto.parkingType as any,
+        paidExpiresAt,
       },
     });
 
@@ -366,21 +461,48 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
             longitude: dto.longitude,
             costType: ParkingCost.PAID,
             durationMin: dto.durationMin,
+            expiresAt: dto.expiresAt,
           })
         : null;
+
+    const paidParkingPrompt = dto.parkingType || !createPaidParkingPrompt
+      ? null
+      : await this.createPendingPaidParkingPrompt(userId, saved.id);
 
     return {
       ...saved,
       googleMapsWalkingLink: this.buildGoogleMapsLink(saved.latitude, saved.longitude, 'walking'),
       parkingSession,
+      paidParkingPrompt,
+    };
+  }
+
+  async processParkedEvent(userId: string, dto: ParkedEventDto) {
+    const savedParking = await this.saveParkingLocation(userId, {
+      ...dto,
+      source: dto.source ?? ParkingSaveSourceDto.AUTO,
+    }, dto.createPaidParkingPrompt !== false);
+
+    const parkingMode = await this.markParked(userId, {
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      accuracy: dto.accuracy,
+      confidence: dto.confidence,
+    });
+
+    return {
+      savedParking,
+      parkingMode,
+      paidParkingPrompt: savedParking.paidParkingPrompt,
     };
   }
 
   async getSavedParkingLocation(userId: string) {
     await this.expireParkingSessions();
 
-    const saved = await this.prismaService.savedParkingLocation.findUnique({
-      where: { userId },
+    const saved = await this.prismaService.savedParkingLocation.findFirst({
+      where: { userId, isActive: true },
+      orderBy: { createdAt: 'desc' },
     });
 
     if (!saved) {
@@ -406,6 +528,125 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
           }
         : null,
     };
+  }
+
+  async getSavedParkingHistory(userId: string, page = 1, limit = 20) {
+    await this.expireParkingSessions();
+
+    const normalizedPage = Math.max(Number(page) || 1, 1);
+    const normalizedLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const skip = (normalizedPage - 1) * normalizedLimit;
+
+    const [locations, total] = await Promise.all([
+      this.prismaService.savedParkingLocation.findMany({
+        where: { userId },
+        skip,
+        take: normalizedLimit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prismaService.savedParkingLocation.count({
+        where: { userId },
+      }),
+    ]);
+
+    return {
+      locations: locations.map((location) => ({
+        ...location,
+        googleMapsWalkingLink: this.buildGoogleMapsLink(
+          location.latitude,
+          location.longitude,
+          'walking',
+        ),
+      })),
+      total,
+      page: normalizedPage,
+      limit: normalizedLimit,
+      totalPages: Math.ceil(total / normalizedLimit),
+    };
+  }
+
+  async getPendingPaidParkingPrompt(userId: string) {
+    const prompt = await this.prismaService.paidParkingPrompt.findFirst({
+      where: { userId, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!prompt) {
+      return null;
+    }
+
+    const savedParkingLocation = await this.prismaService.savedParkingLocation.findUnique({
+      where: { id: prompt.savedParkingLocationId },
+    });
+
+    return {
+      ...prompt,
+      savedParkingLocation,
+    };
+  }
+
+  async answerPaidParkingPrompt(
+    userId: string,
+    promptId: string,
+    dto: AnswerPaidParkingPromptDto,
+  ) {
+    const prompt = await this.getOwnedPendingPaidParkingPrompt(userId, promptId);
+    const savedParkingLocation = await this.prismaService.savedParkingLocation.findUnique({
+      where: { id: prompt.savedParkingLocationId },
+    });
+
+    if (!savedParkingLocation) {
+      throw new NotFoundException('Saved parking location not found');
+    }
+
+    const paidExpiresAt = this.resolvePaidParkingExpiry(
+      dto.parkingType,
+      dto.durationMin,
+      dto.expiresAt,
+    );
+
+    const parkingSession = dto.parkingType === ParkingCost.PAID
+      ? await this.createParkingSession(userId, {
+          latitude: savedParkingLocation.latitude,
+          longitude: savedParkingLocation.longitude,
+          costType: ParkingCost.PAID,
+          durationMin: dto.durationMin,
+          expiresAt: dto.expiresAt,
+        })
+      : null;
+
+    await this.prismaService.savedParkingLocation.update({
+      where: { id: savedParkingLocation.id },
+      data: {
+        parkingType: dto.parkingType as any,
+        paidExpiresAt,
+      },
+    });
+
+    const updatedPrompt = await this.prismaService.paidParkingPrompt.update({
+      where: { id: prompt.id },
+      data: {
+        status: 'ANSWERED',
+        answeredAt: new Date(),
+      },
+    });
+
+    return {
+      prompt: updatedPrompt,
+      parkingSession,
+    };
+  }
+
+  async dismissPaidParkingPrompt(userId: string, promptId: string) {
+    const prompt = await this.getOwnedPendingPaidParkingPrompt(userId, promptId);
+
+    return this.prismaService.paidParkingPrompt.update({
+      where: { id: prompt.id },
+      data: {
+        status: 'DISMISSED',
+        answeredAt: new Date(),
+      },
+    });
   }
 
   async getAllSavedParkingLocations(page = 1, limit = 20) {
@@ -484,16 +725,18 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
   }
 
   async deleteSavedParkingLocation(userId: string) {
-    const saved = await this.prismaService.savedParkingLocation.findUnique({
-      where: { userId },
+    const saved = await this.prismaService.savedParkingLocation.findFirst({
+      where: { userId, isActive: true },
+      orderBy: { createdAt: 'desc' },
     });
 
     if (!saved) {
       throw new NotFoundException('Saved parking location not found');
     }
 
-    await this.prismaService.savedParkingLocation.delete({
-      where: { userId },
+    await this.prismaService.savedParkingLocation.update({
+      where: { id: saved.id },
+      data: { isActive: false },
     });
 
     return { message: 'Saved parking location deleted successfully' };
@@ -502,9 +745,11 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
   async createParkingSession(userId: string, dto: CreateParkingSessionDto) {
     this.validateCoordinates(dto.latitude, dto.longitude);
 
-    if (dto.costType === ParkingCost.PAID && (!dto.durationMin || dto.durationMin <= 0)) {
-      throw new BadRequestException('durationMin is required for paid parking sessions');
-    }
+    const paidExpiresAt = this.resolvePaidParkingExpiry(
+      dto.costType as ParkingCost,
+      dto.durationMin,
+      dto.expiresAt,
+    );
 
     await this.prismaService.parkingSession.updateMany({
       where: { userId, status: 'ACTIVE' },
@@ -513,7 +758,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
 
     const expiresAt =
       dto.costType === ParkingCost.PAID
-        ? new Date(Date.now() + dto.durationMin! * 60 * 1000)
+        ? paidExpiresAt
         : null;
 
     const session = await this.prismaService.parkingSession.create({
@@ -885,8 +1130,9 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
           where: { userId },
           select: { latitude: true, longitude: true },
         }),
-        this.prismaService.savedParkingLocation.findUnique({
-          where: { userId },
+        this.prismaService.savedParkingLocation.findFirst({
+          where: { userId, isActive: true },
+          orderBy: { createdAt: 'desc' },
           select: { latitude: true, longitude: true },
         }),
         this.prismaService.userLocation.findUnique({
@@ -900,18 +1146,26 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
 
   private async notifyParkingHandoffSeeker(
     seekerId: string,
-    handoff: { id: string; latitude: number; longitude: number; expiresAt: Date },
+    handoff: {
+      id: string;
+      latitude: number;
+      longitude: number;
+      approxLatitude?: number | null;
+      approxLongitude?: number | null;
+      expiresAt: Date;
+    },
     distanceMeters: number,
   ) {
     const title = 'Parking spot opening nearby';
     const message = 'A driver is leaving a parking spot near you';
+    const approximateLocation = this.getHandoffApproximateLocation(handoff);
     const payload = {
       handoffId: handoff.id,
-      latitude: handoff.latitude,
-      longitude: handoff.longitude,
+      latitude: approximateLocation.latitude,
+      longitude: approximateLocation.longitude,
       expiresAt: handoff.expiresAt,
       distanceMeters,
-      googleMapsLink: this.buildGoogleMapsLink(handoff.latitude, handoff.longitude, 'driving'),
+      hasExactLocation: false,
       type: 'PARK_RELAY_HANDOFF',
     };
 
@@ -1019,13 +1273,29 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async expireOldHandoffs() {
-    await this.prismaService.parkingHandoff.updateMany({
+    const expiredHandoffs = await this.prismaService.parkingHandoff.findMany({
       where: {
-        status: 'AVAILABLE',
+        status: { in: ['AVAILABLE', 'ACCEPTED'] as any },
         expiresAt: { lt: new Date() },
       },
-      data: { status: 'EXPIRED' },
     });
+
+    for (const handoff of expiredHandoffs) {
+      const result = await this.prismaService.parkingHandoff.updateMany({
+        where: {
+          id: handoff.id,
+          status: { in: ['AVAILABLE', 'ACCEPTED'] as any },
+        },
+        data: { status: 'EXPIRED' },
+      });
+
+      if (result.count === 0) {
+        continue;
+      }
+
+      await this.updateParkRelayReputation(handoff.releaserId, 'expired');
+      await this.notifyHandoffExpired(handoff.releaserId, handoff);
+    }
   }
 
   private async expireParkingSessions() {
@@ -1036,6 +1306,214 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       },
       data: { status: 'EXPIRED' },
     });
+  }
+
+  private async notifyHandoffExpired(
+    userId: string,
+    handoff: { id: string; expiresAt: Date },
+  ) {
+    const title = 'Parking handoff expired';
+    const message = 'Your parking handoff expired without being completed.';
+
+    try {
+      await this.notificationEventService.createEvent({
+        userId,
+        eventType: NotificationEventTypeEnum.SYSTEM_NOTIFICATION,
+        title,
+        message,
+        payload: {
+          handoffId: handoff.id,
+          expiresAt: handoff.expiresAt,
+          type: 'PARK_RELAY_HANDOFF_EXPIRED',
+        },
+      });
+
+      const user = await this.prismaService.user.findUnique({
+        where: { id: userId },
+        select: { fcm_token: true },
+      });
+
+      if (user?.fcm_token) {
+        await this.firebaseClient.sendPushNotification(user.fcm_token, title, message);
+      }
+    } catch (error: any) {
+      this.logger.error(`Failed to notify handoff releaser ${userId} of expiry: ${error.message}`);
+    }
+  }
+
+  private resolvePaidParkingExpiry(
+    parkingType?: ParkingCost,
+    durationMin?: number,
+    expiresAt?: string,
+  ): Date | null {
+    if (parkingType !== ParkingCost.PAID) {
+      return null;
+    }
+
+    if (expiresAt) {
+      const parsedExpiry = new Date(expiresAt);
+      if (Number.isNaN(parsedExpiry.getTime())) {
+        throw new BadRequestException('expiresAt must be a valid date');
+      }
+
+      if (parsedExpiry <= new Date()) {
+        throw new BadRequestException('expiresAt must be in the future');
+      }
+
+      return parsedExpiry;
+    }
+
+    if (!durationMin || durationMin <= 0) {
+      throw new BadRequestException('durationMin or expiresAt is required for paid parking sessions');
+    }
+
+    return new Date(Date.now() + durationMin * 60 * 1000);
+  }
+
+  private async createPendingPaidParkingPrompt(userId: string, savedParkingLocationId: string) {
+    await this.prismaService.paidParkingPrompt.updateMany({
+      where: { userId, status: 'PENDING' },
+      data: {
+        status: 'DISMISSED',
+        answeredAt: new Date(),
+      },
+    });
+
+    return this.prismaService.paidParkingPrompt.create({
+      data: {
+        userId,
+        savedParkingLocationId,
+        status: 'PENDING',
+      },
+    });
+  }
+
+  private async getOwnedPendingPaidParkingPrompt(userId: string, promptId: string) {
+    const prompt = await this.prismaService.paidParkingPrompt.findUnique({
+      where: { id: promptId },
+    });
+
+    if (!prompt) {
+      throw new NotFoundException('Paid parking prompt not found');
+    }
+
+    if (prompt.userId !== userId) {
+      throw new BadRequestException('You do not have permission to answer this prompt');
+    }
+
+    if (prompt.status !== 'PENDING') {
+      throw new BadRequestException('This paid parking prompt has already been handled');
+    }
+
+    return prompt;
+  }
+
+  private async closeActiveParkingForUser(userId: string) {
+    await Promise.all([
+      this.prismaService.parkingSession.updateMany({
+        where: { userId, status: 'ACTIVE' },
+        data: { status: 'LEFT' },
+      }),
+      this.prismaService.savedParkingLocation.updateMany({
+        where: { userId, isActive: true },
+        data: { isActive: false },
+      }),
+    ]);
+  }
+
+  private buildApproximateLocation(latitude: number, longitude: number) {
+    return {
+      latitude: Math.round((latitude + 0.0007) * 1000) / 1000,
+      longitude: Math.round((longitude - 0.0007) * 1000) / 1000,
+    };
+  }
+
+  private getHandoffApproximateLocation(handoff: {
+    latitude: number;
+    longitude: number;
+    approxLatitude?: number | null;
+    approxLongitude?: number | null;
+  }) {
+    if (handoff.approxLatitude !== null && handoff.approxLatitude !== undefined
+      && handoff.approxLongitude !== null && handoff.approxLongitude !== undefined) {
+      return {
+        latitude: handoff.approxLatitude,
+        longitude: handoff.approxLongitude,
+      };
+    }
+
+    return this.buildApproximateLocation(handoff.latitude, handoff.longitude);
+  }
+
+  private canSeeExactHandoffLocation(
+    handoff: { releaserId: string; seekerId?: string | null; status: string },
+    userId?: string,
+  ) {
+    if (!userId) {
+      return false;
+    }
+
+    if (handoff.releaserId === userId) {
+      return true;
+    }
+
+    return handoff.seekerId === userId && ['ACCEPTED', 'FOUND', 'OCCUPIED'].includes(handoff.status);
+  }
+
+  private async updateParkRelayReputation(
+    userId: string,
+    outcome: 'found' | 'occupied' | 'cancelled' | 'expired',
+  ) {
+    const createData = {
+      userId,
+      successfulHandoffs: outcome === 'found' ? 1 : 0,
+      occupiedReports: outcome === 'occupied' ? 1 : 0,
+      cancelledHandoffs: outcome === 'cancelled' ? 1 : 0,
+      expiredHandoffs: outcome === 'expired' ? 1 : 0,
+    };
+
+    const updateData = {
+      ...(outcome === 'found' ? { successfulHandoffs: { increment: 1 } } : {}),
+      ...(outcome === 'occupied' ? { occupiedReports: { increment: 1 } } : {}),
+      ...(outcome === 'cancelled' ? { cancelledHandoffs: { increment: 1 } } : {}),
+      ...(outcome === 'expired' ? { expiredHandoffs: { increment: 1 } } : {}),
+    };
+
+    const reputation = await this.prismaService.parkRelayReputation.upsert({
+      where: { userId },
+      create: createData,
+      update: updateData,
+    });
+
+    return this.prismaService.parkRelayReputation.update({
+      where: { userId },
+      data: { score: this.calculateParkRelayReputationScore(reputation) },
+    });
+  }
+
+  private calculateParkRelayReputationScore(reputation: {
+    successfulHandoffs: number;
+    occupiedReports: number;
+    cancelledHandoffs: number;
+    expiredHandoffs: number;
+  }) {
+    const total = reputation.successfulHandoffs
+      + reputation.occupiedReports
+      + reputation.cancelledHandoffs
+      + reputation.expiredHandoffs;
+
+    if (total === 0) {
+      return 0;
+    }
+
+    const rawScore = (
+      reputation.successfulHandoffs
+      - reputation.occupiedReports * 2
+      - reputation.cancelledHandoffs
+      - reputation.expiredHandoffs
+    ) / total;
+
+    return Math.max(-1, Math.min(1, Number(rawScore.toFixed(2))));
   }
 
   private validateCoordinates(latitude: number, longitude: number) {

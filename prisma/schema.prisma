@@ -65,10 +65,13 @@ model User {
   parkingReports      ParkingReport[]
   documents           UserDocument[]
   supportTickets      SupportTicket[]
+  parkRelayReputation ParkRelayReputation?
 
   notificationEvents         NotificationEvent[]
   notificationPreference     NotificationPreference?
   userLocation               UserLocation?
+  savedParkingLocations      SavedParkingLocation[]
+  paidParkingPrompts         PaidParkingPrompt[]
   parkingNotificationCredits ParkingNotificationCredit[]
 
   // Parking notification credit system
@@ -434,10 +437,13 @@ model ParkingHandoff {
   spotId      String?       @db.ObjectId
   latitude    Float
   longitude   Float
+  approxLatitude  Float?
+  approxLongitude Float?
   status      HandoffStatus @default(AVAILABLE)
   expiresAt   DateTime
   acceptedAt  DateTime?
   cancelledAt DateTime?
+  foundAt     DateTime?
   occupiedAt  DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -465,15 +471,23 @@ model ParkingSearchSession {
 
 model SavedParkingLocation {
   id         String            @id @default(auto()) @map("_id") @db.ObjectId
-  userId     String            @unique @db.ObjectId
+  userId     String            @db.ObjectId
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   latitude   Float
   longitude  Float
   accuracy   Float?
   confidence Float?
   source     ParkingSaveSource @default(MANUAL)
+  note       String?
+  photoUrl   String?
+  isActive   Boolean           @default(true)
+  parkingType ParkingCost?
+  paidExpiresAt DateTime?
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 
+  @@index([userId])
+  @@index([userId, isActive])
   @@map("saved_parking_locations")
 }
 
@@ -495,6 +509,35 @@ model ParkingSession {
   @@index([status])
   @@index([expiresAt])
   @@map("parking_sessions")
+}
+
+model PaidParkingPrompt {
+  id        String                  @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String                  @db.ObjectId
+  user      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedParkingLocationId String     @db.ObjectId
+  status    PaidParkingPromptStatus @default(PENDING)
+  answeredAt DateTime?
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  @@index([userId, status])
+  @@map("paid_parking_prompts")
+}
+
+model ParkRelayReputation {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String   @unique @db.ObjectId
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  successfulHandoffs Int      @default(0)
+  occupiedReports    Int      @default(0)
+  cancelledHandoffs  Int      @default(0)
+  expiredHandoffs    Int      @default(0)
+  score              Float    @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("park_relay_reputations")
 }
 
 model ParkingArea {
@@ -522,6 +565,7 @@ enum TransactionType {
 enum HandoffStatus {
   AVAILABLE
   ACCEPTED
+  FOUND
   CANCELLED
   EXPIRED
   OCCUPIED
@@ -536,6 +580,12 @@ enum ParkingSearchStatus {
 enum ParkingSaveSource {
   AUTO
   MANUAL
+}
+
+enum PaidParkingPromptStatus {
+  PENDING
+  ANSWERED
+  DISMISSED
 }
 
 enum ParkingSessionStatus {
