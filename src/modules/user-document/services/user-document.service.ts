@@ -40,11 +40,10 @@ export class UserDocumentService {
       );
     }
 
-    // Validate expiry date is in the future
-    const expiryDate = new Date(uploadDto.expiry_date);
-    if (expiryDate <= new Date()) {
-      throw new BadRequestException('Document expiry date must be in the future');
-    }
+    const expiryDate = this.resolveExpiryDate(
+      uploadDto.document_type,
+      uploadDto.expiry_date,
+    );
 
     // Use the unique_id provided by the user
     const uniqueId = uploadDto.unique_id;
@@ -183,13 +182,18 @@ export class UserDocumentService {
       updateData.unique_id = updateDto.unique_id;
     }
 
-    // Only update expiry_date if provided
-    if (updateDto.expiry_date) {
-      const expiryDate = new Date(updateDto.expiry_date);
-      if (expiryDate <= new Date()) {
-        throw new BadRequestException('Document expiry date must be in the future');
-      }
-      updateData.expiry_date = expiryDate;
+    if (updateDto.document_type) {
+      updateData.document_type = updateDto.document_type;
+    }
+
+    const documentType = updateDto.document_type ?? document.document_type;
+    if (documentType === 'VEHICLE_OWNERSHIP') {
+      updateData.expiry_date = null;
+    } else if (updateDto.expiry_date) {
+      updateData.expiry_date = this.resolveExpiryDate(
+        documentType,
+        updateDto.expiry_date,
+      );
     }
 
     // Only update document_url if provided
@@ -396,6 +400,27 @@ export class UserDocumentService {
   /**
    * Calculate days until document expiry
    */
+  private resolveExpiryDate(documentType: string, expiryDate?: string | null): Date | null {
+    if (documentType === 'VEHICLE_OWNERSHIP') {
+      return null;
+    }
+
+    if (!expiryDate) {
+      throw new BadRequestException('Document expiry date is required');
+    }
+
+    const parsedExpiryDate = new Date(expiryDate);
+    if (Number.isNaN(parsedExpiryDate.getTime())) {
+      throw new BadRequestException('Document expiry date is invalid');
+    }
+
+    if (parsedExpiryDate <= new Date()) {
+      throw new BadRequestException('Document expiry date must be in the future');
+    }
+
+    return parsedExpiryDate;
+  }
+
   private getDaysUntilExpiry(expiryDate: Date | null): number {
     if (!expiryDate) {
       return -1;
