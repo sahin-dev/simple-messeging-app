@@ -43,6 +43,19 @@ export class UserDocumentController {
     private readonly documentExpiryCheckService: DocumentExpiryCheckService,
   ) {}
 
+  private toUserDocumentResponse(document: any): UserDocumentResponseDto {
+    return {
+      id: document.id,
+      unique_id: document.unique_id,
+      document_type: document.document_type,
+      document_url: document.document_url,
+      expiry_date: document.expiry_date ? document.expiry_date.toISOString().split('T')[0] : null,
+      is_verified: document.is_verified,
+      isExpired: document.isExpired,
+      daysUntilExpiry: document.daysUntilExpiry,
+    };
+  }
+
   /**
    * Upload a new document for the authenticated user
    * Only one document per type is allowed
@@ -95,19 +108,7 @@ export class UserDocumentController {
         fullUploadDto,
       );
 
-      return {
-        id: document.id,
-        unique_id: document.unique_id,
-        document_type: document.document_type,
-        document_url: document.document_url,
-        expiry_date: document.expiry_date.toISOString().split('T')[0],
-        is_verified: document.is_verified,
-        isExpired: document.expiry_date < new Date(),
-        daysUntilExpiry: Math.ceil(
-          (document.expiry_date.getTime() - new Date().getTime()) /
-            (1000 * 60 * 60 * 24),
-        ),
-      };
+      return this.toUserDocumentResponse(document);
     } catch (err: any) {
       this.logger.error(`Error uploading document: ${err.message}`);
       throw new BadRequestException(
@@ -130,19 +131,7 @@ export class UserDocumentController {
 
       const documents = await this.userDocumentService.getUserDocuments(payload.id);
 
-      const documentsDto = documents.map((doc) => ({
-        id: doc.id,
-        unique_id: doc.unique_id,
-        document_type: doc.document_type,
-        document_url: doc.document_url,
-        expiry_date: doc.expiry_date.toISOString().split('T')[0],
-        is_verified: doc.is_verified,
-        isExpired: doc.expiry_date < new Date(),
-        daysUntilExpiry: Math.ceil(
-          (doc.expiry_date.getTime() - new Date().getTime()) /
-            (1000 * 60 * 60 * 24),
-        ),
-      }));
+      const documentsDto = documents.map((doc) => this.toUserDocumentResponse(doc));
 
       return {
         documents: documentsDto,
@@ -174,19 +163,7 @@ export class UserDocumentController {
         payload.id,
       );
 
-      return {
-        id: document.id,
-        unique_id: document.unique_id,
-        document_type: document.document_type,
-        document_url: document.document_url,
-        expiry_date: document.expiry_date.toISOString().split('T')[0],
-        is_verified: document.is_verified,
-        isExpired: document.expiry_date < new Date(),
-        daysUntilExpiry: Math.ceil(
-          (document.expiry_date.getTime() - new Date().getTime()) /
-            (1000 * 60 * 60 * 24),
-        ),
-      };
+      return this.toUserDocumentResponse(document);
     } catch (err: any) {
       this.logger.error(`Error fetching document: ${err.message}`);
       throw new HttpException(
@@ -216,19 +193,7 @@ export class UserDocumentController {
         documentType,
       );
 
-      return {
-        id: document.id,
-        unique_id: document.unique_id,
-        document_type: document.document_type,
-        document_url: document.document_url,
-        expiry_date: document.expiry_date.toISOString().split('T')[0],
-        is_verified: document.is_verified,
-        isExpired: document.expiry_date < new Date(),
-        daysUntilExpiry: Math.ceil(
-          (document.expiry_date.getTime() - new Date().getTime()) /
-            (1000 * 60 * 60 * 24),
-        ),
-      };
+      return this.toUserDocumentResponse(document);
     } catch (err: any) {
       this.logger.error(`Error fetching document by type: ${err.message}`);
       throw new HttpException(
@@ -299,19 +264,7 @@ export class UserDocumentController {
         finalUpdateDto,
       );
 
-      return {
-        id: document.id,
-        unique_id: document.unique_id,
-        document_type: document.document_type,
-        document_url: document.document_url,
-        expiry_date: document.expiry_date.toISOString().split('T')[0],
-        is_verified: document.is_verified,
-        isExpired: document.expiry_date < new Date(),
-        daysUntilExpiry: Math.ceil(
-          (document.expiry_date.getTime() - new Date().getTime()) /
-            (1000 * 60 * 60 * 24),
-        ),
-      };
+      return this.toUserDocumentResponse(document);
     } catch (err: any) {
       this.logger.error(`Error updating document: ${err.message}`);
       throw new HttpException(
@@ -362,19 +315,7 @@ export class UserDocumentController {
       );
 
       const mapDocuments = (docs: any[]) =>
-        docs.map((doc) => ({
-          id: doc.id,
-          unique_id: doc.unique_id,
-          document_type: doc.document_type,
-          document_url: doc.document_url,
-          expiry_date: doc.expiry_date.toISOString().split('T')[0],
-          is_verified: doc.is_verified,
-          isExpired: doc.expiry_date < new Date(),
-          daysUntilExpiry: Math.ceil(
-            (doc.expiry_date.getTime() - new Date().getTime()) /
-              (1000 * 60 * 60 * 24),
-          ),
-        }));
+        docs.map((doc) => this.toUserDocumentResponse(doc));
 
       return {
         expired: mapDocuments(warnings.expiredDocuments),
