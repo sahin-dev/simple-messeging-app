@@ -31,6 +31,9 @@ export class SignInResponseDto {
     token: string
 
     @Expose()
+    requiresOnboarding?: boolean
+
+    @Expose()
     license_no_verified: boolean
 
     @Expose()

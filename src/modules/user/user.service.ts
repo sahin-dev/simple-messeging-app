@@ -391,6 +391,10 @@ export class UserService {
             throw new NotFoundException("User not found");
         }
 
+        if (!user.password) {
+            throw new BadRequestException("This account does not have a password. Please use social sign in.");
+        }
+
         if (changePasswordDto.newPassword !== changePasswordDto.confirmPassword) {
             throw new BadRequestException("New password and confirm password do not match");
         }
@@ -650,6 +654,11 @@ export class UserService {
         if (!user) {
             throw new NotFoundException("User not found");
         }
+
+        if (!user.password) {
+            throw new BadRequestException("This account does not have a password. Please use social sign in.");
+        }
+
         // Here you would typically verify the password before deleting the account
         const passwordMatched = await this.encoder.compare(password, user.password);
 

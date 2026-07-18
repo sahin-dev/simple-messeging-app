@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { SigninDto } from "./dtos/signin.dto";
 import { RegisterUserDto } from "./dtos/register-user.dto";
@@ -10,6 +10,10 @@ import { TokenPayload } from "./types/TokenPayload.type";
 import { UserResponseDto } from "../user/dtos/user-response.dto";
 import { AdminSigninDto } from "./dtos/admin-signin.dto";
 import { UserRole } from "generated/prisma/enums";
+import { GoogleSigninDto } from "./dtos/google-signin.dto";
+import { CheckAuthAvailabilityDto } from "./dtos/check-auth-availability.dto";
+import { AppleSigninDto } from "./dtos/apple-signin.dto";
+import { GoogleAuthStatusDto } from "./dtos/google-auth-status.dto";
 
 @Controller({
     path: "auth"
@@ -58,6 +62,61 @@ export class AuthController {
             excludeExtraneousValues: true,
             groups: [UserRole.ADMIN]
         });
+    }
+
+    @Post("google")
+    @Public()
+    @ResponseMessage("User signed in with Google successfully")
+    @HttpCode(HttpStatus.OK)
+    async googleSignin(@Body() googleSigninDto: GoogleSigninDto) {
+        const user = await this.authService.googleSignin(googleSigninDto);
+
+        if (user.role === UserRole.USER) {
+            return plainToInstance(SignInResponseDto, user, {
+                excludeExtraneousValues: true,
+                groups: [UserRole.USER]
+            });
+        }
+
+        return plainToInstance(SignInResponseDto, user, {
+            excludeExtraneousValues: true,
+            groups: [UserRole.ADMIN]
+        });
+    }
+
+    @Post("google/status")
+    @Public()
+    @ResponseMessage("Google account registration status checked successfully")
+    @HttpCode(HttpStatus.OK)
+    async getGoogleAuthStatus(@Body() googleAuthStatusDto: GoogleAuthStatusDto) {
+        return this.authService.getGoogleAuthStatus(googleAuthStatusDto);
+    }
+
+     @Post("apple")
+    @Public()
+    @ResponseMessage("User signed in with Apple successfully")
+    @HttpCode(HttpStatus.OK)
+    async appleSignin(@Body() appleSigninDto: AppleSigninDto) {
+        const user = await this.authService.appleSignin(appleSigninDto);
+                
+        if (user.role === UserRole.USER) {
+            return plainToInstance(SignInResponseDto, user, {
+                excludeExtraneousValues: true,
+                groups: [UserRole.USER]
+            });
+        }
+
+        return plainToInstance(SignInResponseDto, user, {
+            excludeExtraneousValues: true,
+            groups: [UserRole.ADMIN]
+        });
+    }
+
+    @Get("availability")
+    @Public()
+    @ResponseMessage("Auth fields availability checked successfully")
+    async checkAvailability(@Query() checkAvailabilityDto: CheckAuthAvailabilityDto) {
+        return this.authService.checkAvailability(checkAvailabilityDto);
     }
 
     @Get("me")

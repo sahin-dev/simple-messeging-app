@@ -1,5 +1,6 @@
 import { Transform, TransformFnParams } from "class-transformer"
 import { IsNotEmpty, IsOptional, IsString } from "class-validator"
+import { IsFcmToken } from "src/common/validators/is-fcm-token.validator"
 
 export class SigninDto {
 
@@ -16,5 +17,7 @@ export class SigninDto {
     @IsString()
     @IsNotEmpty()
     @IsOptional()
+    @Transform(({ value }: TransformFnParams) => typeof value === "string" ? value.trim() : value)
+    @IsFcmToken()
     fcm_token?: string
 }

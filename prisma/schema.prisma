@@ -22,7 +22,11 @@ model User {
   name                     String?
   licence_id               String?
   nick_name                String      @unique
-  password                 String
+  password                 String?
+  auth_provider            AuthProvider @default(PASSWORD)
+  firebase_uid             String?
+  google_sub               String?
+  apple_sub                String?
   is_more_options_accepted Boolean     @default(false)
   designation              String?
   is_blocked               Boolean     @default(false)
@@ -78,6 +82,9 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([firebase_uid])
+  @@index([google_sub])
+  @@index([apple_sub])
   @@map("users")
 }
 
@@ -554,6 +561,12 @@ enum RatingStatus {
 enum AccountType {
   FREE
   PREMIUM
+}
+
+enum AuthProvider {
+  PASSWORD
+  GOOGLE
+  APPLE
 }
 
 enum ParkingType {
