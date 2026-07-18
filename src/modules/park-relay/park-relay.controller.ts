@@ -121,8 +121,18 @@ export class ParkRelayController {
   @Get('handoffs/:id')
   @HttpCode(200)
   @ResponseMessage('Parking handoff fetched successfully')
-  async getHandoffById(@Param('id') handoffId: string) {
-    return this.parkRelayService.getHandoffById(handoffId);
+  async getHandoffById(
+    @GetUser('id') userId: string,
+    @Param('id') handoffId: string,
+    @Query('latitude') latitude?: number,
+    @Query('longitude') longitude?: number,
+  ) {
+    return this.parkRelayService.getHandoffById(
+      handoffId,
+      userId,
+      latitude !== undefined ? Number(latitude) : undefined,
+      longitude !== undefined ? Number(longitude) : undefined,
+    );
   }
 
   @Post('saved-parking')

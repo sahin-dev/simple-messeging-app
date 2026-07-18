@@ -1,4 +1,11 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeolocationService } from 'src/common/services/geolocation.service';
 import { NotificationEventService } from '../notification/services/notification-event.service';
@@ -18,11 +25,13 @@ import {
 } from './dtos/park-relay.dto';
 
 @Injectable()
-export class ParkRelayService {
+export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ParkRelayService.name);
   private readonly HANDOFF_WINDOW_MINUTES = 5;
   private readonly HANDOFF_RADIUS_METERS = 300;
   private readonly PARKING_EXPIRY_WARNING_MINUTES = 10;
+  private readonly HANDOFF_CLEANUP_INTERVAL_MS = 60 * 1000;
+  private handoffCleanupTimer?: NodeJS.Timeout;
 
   constructor(
     private readonly prismaService: PrismaService,
@@ -30,6 +39,28 @@ export class ParkRelayService {
     private readonly notificationEventService: NotificationEventService,
     private readonly firebaseClient: FireBaseClient,
   ) {}
+
+  onModuleInit() {
+    this.handoffCleanupTimer = setInterval(() => {
+      this.cleanupExpiredHandoffs().catch((error) => {
+        this.logger.error(
+          `Failed to clean up expired parking handoffs: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+    }, this.HANDOFF_CLEANUP_INTERVAL_MS);
+
+    this.cleanupExpiredHandoffs().catch((error) => {
+      this.logger.error(
+        `Failed to run initial expired parking handoff cleanup: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+  }
+
+  onModuleDestroy() {
+    if (this.handoffCleanupTimer) {
+      clearInterval(this.handoffCleanupTimer);
+    }
+  }
 
   async startSearching(userId: string, dto: UpdateParkingModeDto) {
     this.validateCoordinates(dto.latitude, dto.longitude);
@@ -98,7 +129,8 @@ export class ParkRelayService {
 
   async createHandoff(userId: string, dto: CreateParkingHandoffDto) {
     this.validateCoordinates(dto.latitude, dto.longitude);
-    await this.expireOldHandoffs();
+    await this.cleanupExpiredHandoffs();
+    await this.assertNoUnexpiredHandoff(userId);
 
     const expiresAt = new Date(Date.now() + this.HANDOFF_WINDOW_MINUTES * 60 * 1000);
     const handoff = await this.prismaService.parkingHandoff.create({
@@ -266,7 +298,12 @@ export class ParkRelayService {
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
   }
 
-  async getHandoffById(handoffId: string) {
+  async getHandoffById(
+    handoffId: string,
+    userId?: string,
+    latitude?: number,
+    longitude?: number,
+  ) {
     await this.expireOldHandoffs();
 
     const handoff = await this.prismaService.parkingHandoff.findUnique({
@@ -277,8 +314,21 @@ export class ParkRelayService {
       throw new NotFoundException('Parking handoff not found');
     }
 
+    const distanceCoordinates = await this.resolveDistanceCoordinates(userId, latitude, longitude);
+    const distanceMeters = distanceCoordinates
+      ? Math.round(
+          this.geolocationService.calculateDistance(
+            distanceCoordinates.latitude,
+            distanceCoordinates.longitude,
+            handoff.latitude,
+            handoff.longitude,
+          ),
+        )
+      : null;
+
     return {
       ...handoff,
+      distanceMeters,
       googleMapsLink: this.buildGoogleMapsLink(handoff.latitude, handoff.longitude, 'driving'),
     };
   }
@@ -799,6 +849,55 @@ export class ParkRelayService {
       .sort((a, b) => a.distance - b.distance);
   }
 
+  private async resolveDistanceCoordinates(
+    userId?: string,
+    latitude?: number,
+    longitude?: number,
+  ) {
+    const hasLatitude = latitude !== undefined && !Number.isNaN(latitude);
+    const hasLongitude = longitude !== undefined && !Number.isNaN(longitude);
+
+    if (hasLatitude || hasLongitude) {
+      if (!hasLatitude || !hasLongitude) {
+        throw new BadRequestException('latitude and longitude must be provided together');
+      }
+
+      this.validateCoordinates(latitude!, longitude!);
+
+      return {
+        latitude: latitude!,
+        longitude: longitude!,
+      };
+    }
+
+    if (!userId) {
+      return null;
+    }
+
+    const [activeParkingSession, searchSession, savedParkingLocation, userLocation] =
+      await Promise.all([
+        this.prismaService.parkingSession.findFirst({
+          where: { userId, status: 'ACTIVE' },
+          orderBy: { createdAt: 'desc' },
+          select: { latitude: true, longitude: true },
+        }),
+        this.prismaService.parkingSearchSession.findUnique({
+          where: { userId },
+          select: { latitude: true, longitude: true },
+        }),
+        this.prismaService.savedParkingLocation.findUnique({
+          where: { userId },
+          select: { latitude: true, longitude: true },
+        }),
+        this.prismaService.userLocation.findUnique({
+          where: { userId },
+          select: { latitude: true, longitude: true },
+        }),
+      ]);
+
+    return activeParkingSession ?? searchSession ?? savedParkingLocation ?? userLocation ?? null;
+  }
+
   private async notifyParkingHandoffSeeker(
     seekerId: string,
     handoff: { id: string; latitude: number; longitude: number; expiresAt: Date },
@@ -868,6 +967,55 @@ export class ParkRelayService {
     } catch (err: any) {
       this.logger.error(`Failed to send parking expiry warning to ${userId}: ${err.message}`);
     }
+  }
+
+  private async assertNoUnexpiredHandoff(userId: string) {
+    const existingHandoff = await this.prismaService.parkingHandoff.findFirst({
+      where: {
+        releaserId: userId,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        expiresAt: true,
+      },
+    });
+
+    if (!existingHandoff) {
+      return;
+    }
+
+    const secondsRemaining = Math.max(
+      1,
+      Math.ceil((existingHandoff.expiresAt.getTime() - Date.now()) / 1000),
+    );
+
+    throw new BadRequestException({
+      message: 'You already have an active parking handoff. Please wait until it expires before creating another one.',
+      handoffId: existingHandoff.id,
+      status: existingHandoff.status,
+      expiresAt: existingHandoff.expiresAt,
+      secondsRemaining,
+    });
+  }
+
+  private async cleanupExpiredHandoffs() {
+    await this.expireOldHandoffs();
+
+    const result = await this.prismaService.parkingHandoff.deleteMany({
+      where: {
+        status: 'EXPIRED',
+        expiresAt: { lt: new Date() },
+      },
+    });
+
+    if (result.count > 0) {
+      this.logger.log(`Removed ${result.count} expired parking handoff(s).`);
+    }
+
+    return result;
   }
 
   private async expireOldHandoffs() {

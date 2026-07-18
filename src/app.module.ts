@@ -22,12 +22,13 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { BlacklistedwordModule } from './modules/blacklistedword/blacklistedword.module';
 import mailerConfig from './config/mailer.config';
 import firebaseConfig from './config/firebase.config';
+import appleConfig from './config/apple.config';
 
 import { HelpSupportModule } from './modules/help-support/help-support.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, load: [jwtConfig, mailerConfig, firebaseConfig] }),
+    ConfigModule.forRoot({ isGlobal: true, load: [jwtConfig, mailerConfig, firebaseConfig, appleConfig] }),
     PrismaModule,
     AuthModule,
     UserModule,

@@ -115,6 +115,36 @@
       "key": "deviceId",
       "value": "ios-device-001",
       "type": "string"
+    },
+    {
+      "key": "fcmToken",
+      "value": "FCM_REGISTRATION_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "googleIdToken",
+      "value": "FIREBASE_GOOGLE_ID_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "appleIdentityToken",
+      "value": "APPLE_IDENTITY_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "latitude",
+      "value": "23.7806",
+      "type": "string"
+    },
+    {
+      "key": "longitude",
+      "value": "90.4074",
+      "type": "string"
+    },
+    {
+      "key": "radiusMeters",
+      "value": "300",
+      "type": "string"
     }
   ],
   "item": [
@@ -163,7 +193,7 @@
             "url": "{{baseUrl}}/auth/signin",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"identifier\": \"PRK001\",\n  \"password\": \"Password123!\",\n  \"fcm_token\": \"FCM_TOKEN_OPTIONAL\"\n}"
+              "raw": "{\n  \"identifier\": \"PRK001\",\n  \"password\": \"Password123!\",\n  \"fcm_token\": \"{{fcmToken}}\"\n}"
             }
           },
           "response": [
@@ -213,6 +243,171 @@
               ],
               "cookie": [],
               "body": "{\n    \"id\": \"6a5200166980adf5514a6016\",\n    \"licence_id\": \"PRK003\",\n    \"nick_name\": \"new_user\",\n    \"phone\": null,\n    \"email_verified\": false,\n    \"role\": \"USER\",\n    \"token\": \"JWT_TOKEN\",\n    \"license_no_verified\": false,\n    \"is_vehicle_verified\": false,\n    \"is_vehicle_ownership_document_submitted\": false,\n    \"country\": null,\n    \"city\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Google Auth Status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/google/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idToken\": \"{{googleIdToken}}\"\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "Google Auth Status - 200 Registered",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"registered\": true,\n    \"requiresOnboarding\": false,\n    \"provider\": \"GOOGLE\",\n    \"email\": \"existing@example.com\",\n    \"name\": \"Existing User\",\n    \"picture\": \"https://lh3.googleusercontent.com/avatar-url\",\n    \"missingFields\": []\n}"
+            },
+            {
+              "name": "Google Auth Status - 200 New User",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"registered\": false,\n    \"requiresOnboarding\": true,\n    \"provider\": \"GOOGLE\",\n    \"email\": \"newuser@example.com\",\n    \"name\": \"New User\",\n    \"picture\": \"https://lh3.googleusercontent.com/avatar-url\",\n    \"missingFields\": [\n        \"nick_name\",\n        \"licence_id\"\n    ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Google Sign In",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/google",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idToken\": \"{{googleIdToken}}\",\n  \"fcm_token\": \"{{fcmToken}}\",\n  \"nick_name\": \"google_user\",\n  \"licence_id\": \"PRK123\",\n  \"designation\": \"Driver\",\n  \"is_more_options_accepted\": true,\n  \"country\": \"BD\",\n  \"city\": \"Dhaka\"\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "Google Sign In - 200",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"id\": \"6a51e5183689cdc29e9c9564\",\n    \"licence_id\": \"PRK123\",\n    \"nick_name\": \"google_user\",\n    \"phone\": null,\n    \"email_verified\": true,\n    \"role\": \"USER\",\n    \"token\": \"JWT_TOKEN\",\n    \"license_no_verified\": false,\n    \"is_vehicle_verified\": false,\n    \"is_vehicle_ownership_document_submitted\": false,\n    \"country\": \"BD\",\n    \"city\": \"Dhaka\",\n    \"requiresOnboarding\": true\n}"
+            },
+            {
+              "name": "Google Sign In - 400 Onboarding Required",
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"statusCode\": 400,\n    \"message\": {\n        \"message\": \"Google account requires onboarding before registration.\",\n        \"requiresOnboarding\": true,\n        \"missingFields\": [\n            \"nick_name\",\n            \"licence_id\"\n        ]\n    },\n    \"error\": \"Bad Request\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Apple Sign In",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/apple",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identityToken\": \"{{appleIdentityToken}}\",\n  \"nonce\": \"OPTIONAL_NONCE_USED_BY_CLIENT\",\n  \"fcm_token\": \"{{fcmToken}}\",\n  \"name\": \"Apple User\",\n  \"nick_name\": \"apple_user\",\n  \"licence_id\": \"PRK124\",\n  \"designation\": \"Driver\",\n  \"is_more_options_accepted\": true,\n  \"country\": \"BD\",\n  \"city\": \"Dhaka\"\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "Apple Sign In - 200",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"id\": \"6a51e5183689cdc29e9c9564\",\n    \"licence_id\": \"PRK124\",\n    \"nick_name\": \"apple_user\",\n    \"phone\": null,\n    \"email_verified\": true,\n    \"role\": \"USER\",\n    \"token\": \"JWT_TOKEN\",\n    \"license_no_verified\": false,\n    \"is_vehicle_verified\": false,\n    \"is_vehicle_ownership_document_submitted\": false,\n    \"country\": \"BD\",\n    \"city\": \"Dhaka\",\n    \"requiresOnboarding\": true\n}"
+            }
+          ]
+        },
+        {
+          "name": "Check Auth Availability",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/auth/availability?nick_name=new_user&licence_id=PRK003"
+          },
+          "response": [
+            {
+              "name": "Check Auth Availability - 200",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"available\": true,\n    \"nick_name\": {\n        \"value\": \"new_user\",\n        \"available\": true,\n        \"is_taken\": false\n    },\n    \"licence_id\": {\n        \"value\": \"PRK003\",\n        \"available\": true,\n        \"associated_accounts\": 0,\n        \"max_accounts\": 3\n    }\n}"
+            },
+            {
+              "name": "Check Auth Availability - 200 Unavailable",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"available\": false,\n    \"nick_name\": {\n        \"value\": \"park_releaser\",\n        \"available\": false,\n        \"is_taken\": true\n    },\n    \"licence_id\": {\n        \"value\": \"PRK001\",\n        \"available\": false,\n        \"associated_accounts\": 3,\n        \"max_accounts\": 3\n    }\n}"
             }
           ]
         },
@@ -1234,6 +1429,20 @@
               ],
               "cookie": [],
               "body": "{\n    \"id\": \"6a51e5aa3689cdc29e9c9566\",\n    \"releaserId\": \"6a51e5183689cdc29e9c9564\",\n    \"seekerId\": null,\n    \"spotId\": null,\n    \"latitude\": 23.7806,\n    \"longitude\": 90.4074,\n    \"status\": \"AVAILABLE\",\n    \"expiresAt\": \"2026-07-11T07:45:45.814Z\",\n    \"acceptedAt\": null,\n    \"cancelledAt\": null,\n    \"occupiedAt\": null,\n    \"createdAt\": \"2026-07-11T07:40:45.814Z\",\n    \"updatedAt\": \"2026-07-11T07:40:45.814Z\",\n    \"windowSeconds\": 300,\n    \"radiusMeters\": 300,\n    \"notifiedSeekers\": 1,\n    \"googleMapsLink\": \"https://www.google.com/maps/dir/?api=1&destination=23.7806,90.4074&travelmode=driving\"\n}"
+            },
+            {
+              "name": "Create Handoff - 400 Active Handoff Exists",
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"statusCode\": 400,\n    \"message\": {\n        \"message\": \"You already have an active parking handoff. Please wait until it expires before creating another one.\",\n        \"handoffId\": \"6a51e5aa3689cdc29e9c9566\",\n        \"status\": \"AVAILABLE\",\n        \"expiresAt\": \"2026-07-11T07:45:45.814Z\",\n        \"secondsRemaining\": 240\n    },\n    \"error\": \"Bad Request\"\n}"
             }
           ]
         },
@@ -1334,7 +1543,7 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": "{{baseUrl}}/park-relay/handoffs/nearby?latitude=23.7806&longitude=90.4074&radiusMeters=300"
+            "url": "{{baseUrl}}/park-relay/handoffs/nearby?latitude={{latitude}}&longitude={{longitude}}&radiusMeters={{radiusMeters}}"
           },
           "response": [
             {
@@ -1363,7 +1572,7 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": "{{baseUrl}}/park-relay/handoffs/{{handoffId}}"
+            "url": "{{baseUrl}}/park-relay/handoffs/{{handoffId}}?latitude={{latitude}}&longitude={{longitude}}"
           },
           "response": [
             {
@@ -1378,7 +1587,21 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n    \"id\": \"6a51e5aa3689cdc29e9c9566\",\n    \"releaserId\": \"6a51e5183689cdc29e9c9564\",\n    \"seekerId\": null,\n    \"spotId\": null,\n    \"latitude\": 23.7806,\n    \"longitude\": 90.4074,\n    \"status\": \"AVAILABLE\",\n    \"expiresAt\": \"2026-07-11T07:45:45.814Z\",\n    \"acceptedAt\": null,\n    \"cancelledAt\": null,\n    \"occupiedAt\": null,\n    \"createdAt\": \"2026-07-11T07:40:45.814Z\",\n    \"updatedAt\": \"2026-07-11T07:40:45.814Z\",\n    \"googleMapsLink\": \"https://www.google.com/maps/dir/?api=1&destination=23.7806,90.4074&travelmode=driving\"\n}"
+              "body": "{\n    \"id\": \"6a51e5aa3689cdc29e9c9566\",\n    \"releaserId\": \"6a51e5183689cdc29e9c9564\",\n    \"seekerId\": null,\n    \"spotId\": null,\n    \"latitude\": 23.7806,\n    \"longitude\": 90.4074,\n    \"status\": \"AVAILABLE\",\n    \"expiresAt\": \"2026-07-11T07:45:45.814Z\",\n    \"acceptedAt\": null,\n    \"cancelledAt\": null,\n    \"occupiedAt\": null,\n    \"createdAt\": \"2026-07-11T07:40:45.814Z\",\n    \"updatedAt\": \"2026-07-11T07:40:45.814Z\",\n    \"distanceMeters\": 0,\n    \"googleMapsLink\": \"https://www.google.com/maps/dir/?api=1&destination=23.7806,90.4074&travelmode=driving\"\n}"
+            },
+            {
+              "name": "Get Handoff By Id - 200 No Location Available",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"id\": \"6a51e5aa3689cdc29e9c9566\",\n    \"releaserId\": \"6a51e5183689cdc29e9c9564\",\n    \"seekerId\": null,\n    \"spotId\": null,\n    \"latitude\": 23.7806,\n    \"longitude\": 90.4074,\n    \"status\": \"AVAILABLE\",\n    \"expiresAt\": \"2026-07-11T07:45:45.814Z\",\n    \"acceptedAt\": null,\n    \"cancelledAt\": null,\n    \"occupiedAt\": null,\n    \"createdAt\": \"2026-07-11T07:40:45.814Z\",\n    \"updatedAt\": \"2026-07-11T07:40:45.814Z\",\n    \"distanceMeters\": null,\n    \"googleMapsLink\": \"https://www.google.com/maps/dir/?api=1&destination=23.7806,90.4074&travelmode=driving\"\n}"
             }
           ]
         }
