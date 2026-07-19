@@ -53,7 +53,7 @@ export class UserDocumentService {
         user_id: userId,
         unique_id: uniqueId,
         document_type: uploadDto.document_type,
-        document_url: uploadDto.document_url,
+        document_url: uploadDto.document_url || null,
         expiry_date: expiryDate,
       },
     });
@@ -178,7 +178,7 @@ export class UserDocumentService {
     const updateData: any = {};
 
     // Only update unique_id if provided
-    if (updateDto.unique_id) {
+    if (updateDto.unique_id !== undefined) {
       updateData.unique_id = updateDto.unique_id;
     }
 
@@ -197,8 +197,8 @@ export class UserDocumentService {
     }
 
     // Only update document_url if provided
-    if (updateDto.document_url) {
-      updateData.document_url = updateDto.document_url;
+    if (updateDto.document_url !== undefined) {
+      updateData.document_url = updateDto.document_url || null;
     }
 
     // If no fields to update, return existing document

@@ -1,4 +1,5 @@
-import { IsEnum, IsNotEmpty, IsString, IsDateString, IsMongoId, IsOptional } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsEnum, IsNotEmpty, IsString, IsDateString, IsOptional } from 'class-validator';
 
 export enum DocumentTypeEnum {
   LICENSE = 'LICENSE',
@@ -13,17 +14,18 @@ export class UploadUserDocumentDto {
   @IsNotEmpty()
   document_type: DocumentTypeEnum;
 
-  @IsString()
+  @Transform(({ value }) => value === undefined || value === null ? value : String(value))
   @IsOptional()
-  unique_id: string; // Unique ID for the document, provided by user
+  @IsString()
+  unique_id?: string; // Unique ID for the document, provided by user
 
   @IsDateString()
   @IsOptional()
-  expiry_date: string; // ISO date string (YYYY-MM-DD)
+  expiry_date?: string; // ISO date string (YYYY-MM-DD)
 
   @IsString()
-  @IsNotEmpty()
-  document_url: string; // URL of the uploaded document
+  @IsOptional()
+  document_url?: string; // URL of the uploaded document
 }
 
 export class UploadUserDocumentFileDto {
@@ -31,20 +33,26 @@ export class UploadUserDocumentFileDto {
   @IsOptional()
   document_type: DocumentTypeEnum;
 
-  @IsString()
+  @Transform(({ value }) => value === undefined || value === null ? value : String(value))
   @IsOptional()
-  unique_id: string; // Unique ID for the document, provided by user
+  @IsString()
+  unique_id?: string; // Unique ID for the document, provided by user
 
   @IsDateString()
   @IsOptional()
-  expiry_date: string; // ISO date string (YYYY-MM-DD)
+  expiry_date?: string; // ISO date string (YYYY-MM-DD)
+
+  @IsString()
+  @IsOptional()
+  document_url?: string; // Optional URL if no file is uploaded
 
   // file is handled by multer, not by class-validator
 }
 
 export class UpdateUserDocumentDto {
-  @IsString()
+  @Transform(({ value }) => value === undefined || value === null ? value : String(value))
   @IsOptional()
+  @IsString()
   unique_id?: string; // Unique ID for the document, can be updated by user
 
   @IsString()
@@ -61,8 +69,9 @@ export class UpdateUserDocumentDto {
 }
 
 export class UpdateUserDocumentFileDto {
-  @IsString()
+  @Transform(({ value }) => value === undefined || value === null ? value : String(value))
   @IsOptional()
+  @IsString()
   unique_id?: string; // Unique ID for the document, can be updated by user
 
   @IsDateString()
@@ -74,6 +83,10 @@ export class UpdateUserDocumentFileDto {
   @IsOptional()
   document_type?: DocumentTypeEnum;
 
+  @IsString()
+  @IsOptional()
+  document_url?: string;
+
   // file is handled by multer, not by class-validator
 }
 
@@ -81,7 +94,7 @@ export class UserDocumentResponseDto {
   id: string;
   unique_id: string | null;
   document_type: string;
-  document_url: string;
+  document_url: string | null;
   expiry_date: string | null; // ISO date string
   is_verified: boolean;
   isExpired: boolean;

@@ -733,7 +733,7 @@ model UserDocument {
   unique_id     String?
   expiry_date   DateTime?
   document_type DocumentType
-  document_url  String
+  document_url  String?
   is_verified   Boolean      @default(false)
 
   createdAt DateTime @default(now())
