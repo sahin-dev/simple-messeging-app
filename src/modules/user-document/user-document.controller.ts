@@ -79,21 +79,19 @@ export class UserDocumentController {
   @ResponseMessage('Document uploaded successfully')
   async uploadDocument(
     @Req() request: Request,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File | undefined,
     @Body() uploadDto: UploadUserDocumentFileDto,
   ): Promise<UserDocumentResponseDto> {
     try {
-      if (!file) {
-        throw new BadRequestException('No file provided');
-      }
-
       const payload = request['payload'] as TokenPayload;
       this.logger.log(
-        `User ${payload.id} uploading ${uploadDto.document_type} document with file: ${file.filename}`,
+        `User ${payload.id} uploading ${uploadDto.document_type} document${file ? ` with file: ${file.filename}` : ''}`,
       );
 
       // Create the document URL from the uploaded file path
-      const documentUrl = `/uploads/documents/${file.filename}`;
+      const documentUrl = file
+        ? `/uploads/documents/${file.filename}`
+        : uploadDto.document_url;
 
       // Create upload DTO with the file URL and unique_id from user
       const fullUploadDto: UploadUserDocumentDto = {
@@ -246,7 +244,11 @@ export class UserDocumentController {
         );
       }
 
-      if (updateDto.unique_id) {
+      if (!file && updateDto.document_url !== undefined) {
+        finalUpdateDto.document_url = updateDto.document_url;
+      }
+
+      if (updateDto.unique_id !== undefined) {
         finalUpdateDto.unique_id = updateDto.unique_id;
       }
 
