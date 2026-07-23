@@ -438,21 +438,24 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       data: { isActive: false },
     });
 
-    const saved = await this.prismaService.savedParkingLocation.create({
-      data: {
-        userId,
-        latitude: dto.latitude,
-        longitude: dto.longitude,
-        accuracy: dto.accuracy,
-        confidence: dto.confidence,
-        source: dto.source ?? ParkingSaveSourceDto.MANUAL,
-        note: dto.note,
-        photoUrl: dto.photoUrl,
-        isActive: true,
-        parkingType: dto.parkingType as any,
-        paidExpiresAt,
-      },
-    });
+    const savedParkingData = {
+      userId,
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      accuracy: dto.accuracy,
+      confidence: dto.confidence,
+      source: dto.source ?? ParkingSaveSourceDto.MANUAL,
+      note: dto.note,
+      photoUrl: dto.photoUrl,
+      isActive: true,
+      parkingType: dto.parkingType as any,
+      paidExpiresAt,
+    };
+
+    const saved = await this.createSavedParkingLocationWithIndexFallback(
+      userId,
+      savedParkingData,
+    );
 
     const parkingSession =
       dto.parkingType === ParkingCost.PAID
@@ -1306,6 +1309,45 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       },
       data: { status: 'EXPIRED' },
     });
+  }
+
+  private async createSavedParkingLocationWithIndexFallback(
+    userId: string,
+    data: any,
+  ) {
+    try {
+      return await this.prismaService.savedParkingLocation.create({ data });
+    } catch (error: any) {
+      if (!this.isLegacySavedParkingUserIdUniqueIndexError(error)) {
+        throw error;
+      }
+
+      this.logger.warn(
+        'saved_parking_locations_userId_key still exists in the database. Updating the existing saved parking location as a compatibility fallback. Run pnpm run fix:saved-parking-index to enable full parking history.',
+      );
+
+      const existingSavedParking = await this.prismaService.savedParkingLocation.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (!existingSavedParking) {
+        throw error;
+      }
+
+      return this.prismaService.savedParkingLocation.update({
+        where: { id: existingSavedParking.id },
+        data,
+      });
+    }
+  }
+
+  private isLegacySavedParkingUserIdUniqueIndexError(error: any) {
+    const target = error?.meta?.target;
+    const targetText = Array.isArray(target) ? target.join(',') : String(target ?? '');
+
+    return error?.code === 'P2002'
+      && targetText.includes('saved_parking_locations_userId_key');
   }
 
   private async notifyHandoffExpired(
