@@ -80,6 +80,7 @@ model User {
   parking_reports_submitted       Int @default(0)
 
   deviceKeys UserDeviceKey[]
+  parkingAreaRatings ParkingAreaRating[]
 
   lastSeenAt DateTime?
   createdAt DateTime @default(now())
@@ -541,20 +542,42 @@ model ParkRelayReputation {
 }
 
 model ParkingArea {
-  id          String      @id @default(auto()) @map("_id") @db.ObjectId
-  name        String?
-  description String?
-  centerLat   Float
-  centerLng   Float
-  polygon     Json?
-  parkingCost ParkingCost?
-  isActive    Boolean     @default(false)
-  createdById String      @db.ObjectId
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id                       String                     @id @default(auto()) @map("_id") @db.ObjectId
+  name                     String?
+  description              String?
+  centerLat                Float
+  centerLng                Float
+  polygon                  Json?
+  parkingCost              ParkingCost?
+  parkingFee               Float?
+  parkingAreaTypes         ParkingAreaType[]          @default([])
+  disabledFacilityLocation DisabledFacilityLocation?
+  isActive                 Boolean                    @default(false)
+  createdById              String                     @db.ObjectId
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  rating                   Float?
+  reviewCount              Int                        @default(0)
+  ratings                  ParkingAreaRating[]
 
   @@index([isActive])
   @@map("parking_areas")
+}
+
+model ParkingAreaRating {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  parkingAreaId String   @db.ObjectId
+  userId        String   @db.ObjectId
+  rating        Int
+  review        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  parkingArea ParkingArea @relation(fields: [parkingAreaId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([parkingAreaId, userId])
+  @@map("parking_area_ratings")
 }
 
 enum TransactionType {
@@ -642,9 +665,13 @@ enum ParkingCost {
   FREE
   PAID
 }
+enum ParkingAreaType {
+  ELECTRIC_CHARGING
+  DISABLED_FACILITY
+}
 
 enum DisabledFacilityLocation {
-  TOP
+  BACK
   RIGHT
   LEFT
   NONE

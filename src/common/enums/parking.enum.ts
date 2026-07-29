@@ -11,9 +11,14 @@ export enum ParkingCost {
 }
 
 export enum DisabledFacilityLocation {
+  ALL = 'ALL',
+  BACK = 'BACK',
   LEFT = 'LEFT',
   RIGHT = 'RIGHT',
-  BACK = 'BACK',
   NONE = 'NONE',
-  ALL = "ALL"
+}
+
+export enum ParkingAreaType {
+  ELECTRIC_CHARGING = 'ELECTRIC_CHARGING',
+  DISABLED_FACILITY = 'DISABLED_FACILITY',
 }

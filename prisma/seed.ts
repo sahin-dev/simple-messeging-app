@@ -324,6 +324,8 @@ async function seedParkData() {
       centerLat: 23.7806,
       centerLng: 90.4074,
       parkingCost: 'PAID',
+      parkingFee: 20,
+      parkingAreaTypes: ['ELECTRIC_CHARGING'],
       isActive: true,
       createdById: admin.id,
       polygon: [
@@ -342,6 +344,8 @@ async function seedParkData() {
       centerLat: 23.7793,
       centerLng: 90.4059,
       parkingCost: 'FREE',
+      parkingAreaTypes: ['DISABLED_FACILITY'],
+      disabledFacilityLocation: 'ALL',
       isActive: true,
       createdById: admin.id,
       polygon: [
