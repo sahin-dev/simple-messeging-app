@@ -11,10 +11,11 @@ import { GeolocationService } from 'src/common/services/geolocation.service';
 import { NotificationEventService } from '../notification/services/notification-event.service';
 import { NotificationEventTypeEnum } from '../notification/dtos/notification-event.dto';
 import { FireBaseClient } from '../notification/providers/firebase.provider';
-import { ParkingCost } from 'src/common/enums';
+import { DisabledFacilityLocation, ParkingAreaType, ParkingCost } from 'src/common/enums';
 import {
   AnswerPaidParkingPromptDto,
   CreateParkingAreaDto,
+  CreateParkingAreaRatingDto,
   CreateParkingHandoffDto,
   CreateParkingSessionDto,
   ParkingSaveSourceDto,
@@ -23,6 +24,7 @@ import {
   SearchParkingAreaDto,
   SubmitParkingAreaPointDto,
   UpdateParkingAreaDto,
+  UpdateParkingAreaRatingDto,
   UpdateParkingModeDto,
 } from './dtos/park-relay.dto';
 
@@ -860,6 +862,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
   async createParkingArea(adminId: string, dto: CreateParkingAreaDto) {
     this.validateCoordinates(dto.centerLat, dto.centerLng);
     this.validatePolygon(dto.polygon);
+    const parkingAreaTypes = this.normalizeParkingAreaTypes(dto.parkingAreaTypes);
 
     return this.prismaService.parkingArea.create({
       data: {
@@ -869,6 +872,12 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
         centerLng: dto.centerLng,
         polygon: dto.polygon as any,
         parkingCost: dto.parkingCost as any,
+        parkingFee: dto.parkingFee,
+        parkingAreaTypes: parkingAreaTypes as any,
+        disabledFacilityLocation: this.resolveDisabledFacilityLocation(
+          parkingAreaTypes,
+          dto.disabledFacilityLocation,
+        ) as any,
         isActive: dto.isActive ?? true,
         createdById: adminId,
       },
@@ -877,6 +886,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
 
   async submitParkingAreaPoint(userId: string, dto: SubmitParkingAreaPointDto) {
     this.validateCoordinates(dto.centerLat, dto.centerLng);
+    const parkingAreaTypes = this.normalizeParkingAreaTypes(dto.parkingAreaTypes);
 
     return this.prismaService.parkingArea.create({
       data: {
@@ -884,6 +894,13 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
         description: dto.description,
         centerLat: dto.centerLat,
         centerLng: dto.centerLng,
+        parkingCost: dto.parkingCost as any,
+        parkingFee: dto.parkingFee,
+        parkingAreaTypes: parkingAreaTypes as any,
+        disabledFacilityLocation: this.resolveDisabledFacilityLocation(
+          parkingAreaTypes,
+          dto.disabledFacilityLocation,
+        ) as any,
         isActive: false,
         createdById: userId,
       },
@@ -925,6 +942,14 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       where.parkingCost = query.parkingCost;
     }
 
+    if (query.parkingAreaTypes?.length) {
+      where.parkingAreaTypes = { hasEvery: query.parkingAreaTypes };
+    }
+
+    if (query.disabledFacilityLocation) {
+      where.disabledFacilityLocation = query.disabledFacilityLocation;
+    }
+
     if (hasLatitude !== hasLongitude) {
       throw new BadRequestException('latitude and longitude must be provided together');
     }
@@ -937,8 +962,8 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       this.validateCoordinates(query.latitude!, query.longitude!);
     }
 
-    if (query.radiusMeters !== undefined && Number(query.radiusMeters) <= 0) {
-      throw new BadRequestException('radiusMeters must be greater than zero');
+    if (query.radiusMeters !== undefined) {
+      this.validateParkingAreaSearchRadius(Number(query.radiusMeters));
     }
 
     const areas = await this.prismaService.parkingArea.findMany({
@@ -978,6 +1003,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
 
   async getNearbyParkingAreas(latitude: number, longitude: number, radiusMeters = 1000) {
     this.validateCoordinates(latitude, longitude);
+    this.validateParkingAreaSearchRadius(Number(radiusMeters));
 
     const areas = await this.prismaService.parkingArea.findMany({
       where: { isActive: true },
@@ -1020,6 +1046,10 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       this.validateCoordinates(nextCenterLat, nextCenterLng);
     }
 
+    const nextParkingAreaTypes = dto.parkingAreaTypes !== undefined
+      ? this.normalizeParkingAreaTypes(dto.parkingAreaTypes)
+      : area.parkingAreaTypes as ParkingAreaType[];
+
     return this.prismaService.parkingArea.update({
       where: { id: areaId },
       data: {
@@ -1029,6 +1059,15 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
         centerLng: dto.centerLng,
         polygon: dto.polygon as any,
         parkingCost: dto.parkingCost as any,
+        parkingFee: dto.parkingFee,
+        parkingAreaTypes: dto.parkingAreaTypes !== undefined
+          ? nextParkingAreaTypes as any
+          : undefined,
+        disabledFacilityLocation: this.resolveDisabledFacilityLocation(
+          nextParkingAreaTypes,
+          dto.disabledFacilityLocation,
+          area.disabledFacilityLocation as any,
+        ) as any,
         isActive: dto.isActive,
       },
     });
@@ -1048,6 +1087,157 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     });
 
     return { message: 'Parking area deleted successfully' };
+  }
+
+  async createParkingAreaRating(
+    userId: string,
+    areaId: string,
+    dto: CreateParkingAreaRatingDto,
+  ) {
+    await this.assertParkingAreaExists(areaId);
+
+    const existingRating = await this.prismaService.parkingAreaRating.findUnique({
+      where: {
+        parkingAreaId_userId: {
+          parkingAreaId: areaId,
+          userId,
+        },
+      },
+    });
+
+    if (existingRating) {
+      throw new BadRequestException('You have already rated this parking area');
+    }
+
+    const rating = await this.prismaService.parkingAreaRating.create({
+      data: {
+        parkingAreaId: areaId,
+        userId,
+        rating: dto.rating,
+        review: dto.review,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            nick_name: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    await this.refreshParkingAreaRatingSummary(areaId);
+
+    return rating;
+  }
+
+  async updateMyParkingAreaRating(
+    userId: string,
+    areaId: string,
+    dto: UpdateParkingAreaRatingDto,
+  ) {
+    await this.assertParkingAreaExists(areaId);
+
+    const existingRating = await this.prismaService.parkingAreaRating.findUnique({
+      where: {
+        parkingAreaId_userId: {
+          parkingAreaId: areaId,
+          userId,
+        },
+      },
+    });
+
+    if (!existingRating) {
+      throw new NotFoundException('Parking area rating not found');
+    }
+
+    const rating = await this.prismaService.parkingAreaRating.update({
+      where: { id: existingRating.id },
+      data: {
+        rating: dto.rating,
+        review: dto.review,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            nick_name: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    await this.refreshParkingAreaRatingSummary(areaId);
+
+    return rating;
+  }
+
+  async getParkingAreaRatings(areaId: string, page = 1, limit = 10) {
+    await this.assertParkingAreaExists(areaId);
+
+    const normalizedPage = Math.max(Number(page) || 1, 1);
+    const normalizedLimit = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const skip = (normalizedPage - 1) * normalizedLimit;
+
+    const [ratings, total] = await Promise.all([
+      this.prismaService.parkingAreaRating.findMany({
+        where: { parkingAreaId: areaId },
+        skip,
+        take: normalizedLimit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: {
+              id: true,
+              nick_name: true,
+              avatar: true,
+            },
+          },
+        },
+      }),
+      this.prismaService.parkingAreaRating.count({
+        where: { parkingAreaId: areaId },
+      }),
+    ]);
+
+    return {
+      ratings,
+      total,
+      page: normalizedPage,
+      limit: normalizedLimit,
+      totalPages: Math.ceil(total / normalizedLimit),
+    };
+  }
+
+  async getMyParkingAreaRating(userId: string, areaId: string) {
+    await this.assertParkingAreaExists(areaId);
+
+    const rating = await this.prismaService.parkingAreaRating.findUnique({
+      where: {
+        parkingAreaId_userId: {
+          parkingAreaId: areaId,
+          userId,
+        },
+      },
+    });
+
+    if (!rating) {
+      throw new NotFoundException('Parking area rating not found');
+    }
+
+    return rating;
+  }
+
+  async getParkingAreaRatingSummary(areaId: string) {
+    const area = await this.assertParkingAreaExists(areaId);
+
+    return {
+      parkingAreaId: area.id,
+      rating: area.rating ?? 0,
+      reviewCount: area.reviewCount,
+    };
   }
 
   private async findActiveSeekers(latitude: number, longitude: number, excludeUserId: string) {
@@ -1556,6 +1746,66 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     ) / total;
 
     return Math.max(-1, Math.min(1, Number(rawScore.toFixed(2))));
+  }
+
+  private normalizeParkingAreaTypes(parkingAreaTypes?: string[]) {
+    return Array.from(new Set(parkingAreaTypes ?? [])) as ParkingAreaType[];
+  }
+
+  private resolveDisabledFacilityLocation(
+    parkingAreaTypes: ParkingAreaType[],
+    disabledFacilityLocation?: DisabledFacilityLocation | null,
+    existingDisabledFacilityLocation?: DisabledFacilityLocation | null,
+  ) {
+    if (!parkingAreaTypes.includes(ParkingAreaType.DISABLED_FACILITY)) {
+      return null;
+    }
+
+    return disabledFacilityLocation
+      ?? existingDisabledFacilityLocation
+      ?? DisabledFacilityLocation.ALL;
+  }
+
+  private validateParkingAreaSearchRadius(radiusMeters: number) {
+    if (Number.isNaN(radiusMeters)) {
+      throw new BadRequestException('radiusMeters must be a number');
+    }
+
+    if (radiusMeters < 100 || radiusMeters > 20000) {
+      throw new BadRequestException('radiusMeters must be between 100 and 20000');
+    }
+  }
+
+  private async assertParkingAreaExists(areaId: string) {
+    const area = await this.prismaService.parkingArea.findUnique({
+      where: { id: areaId },
+    });
+
+    if (!area) {
+      throw new NotFoundException('Parking area not found');
+    }
+
+    return area;
+  }
+
+  private async refreshParkingAreaRatingSummary(areaId: string) {
+    const aggregate = await this.prismaService.parkingAreaRating.aggregate({
+      where: { parkingAreaId: areaId },
+      _avg: { rating: true },
+      _count: { rating: true },
+    });
+
+    const rating = aggregate._avg.rating === null
+      ? null
+      : Math.round(aggregate._avg.rating * 10) / 10;
+
+    return this.prismaService.parkingArea.update({
+      where: { id: areaId },
+      data: {
+        rating,
+        reviewCount: aggregate._count.rating,
+      },
+    });
   }
 
   private validateCoordinates(latitude: number, longitude: number) {

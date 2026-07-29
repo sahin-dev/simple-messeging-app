@@ -1,0 +1,196 @@
+{
+  "info": {
+    "name": "PLATEChatter - Create Parking Area",
+    "_postman_id": "platechatter-create-parking-area",
+    "description": "Focused collection for creating parking areas with parkingAreaTypes. Use an admin JWT for the admin polygon endpoint, or a user JWT for the user drop-pin submission endpoint.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "ADMIN_JWT_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "USER_JWT_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "parkingAreaId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Admin - Create Parking Area Polygon",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Green Park Mall\",\n  \"description\": \"Side Parking\",\n  \"centerLat\": 23.7806,\n  \"centerLng\": 90.4074,\n  \"polygon\": [\n    {\n      \"latitude\": 23.7801,\n      \"longitude\": 90.4069\n    },\n    {\n      \"latitude\": 23.7811,\n      \"longitude\": 90.4069\n    },\n    {\n      \"latitude\": 23.7811,\n      \"longitude\": 90.4079\n    },\n    {\n      \"latitude\": 23.7801,\n      \"longitude\": 90.4079\n    }\n  ],\n  \"parkingCost\": \"PAID\",\n  \"parkingFee\": 20,\n  \"parkingAreaTypes\": [\n    \"ELECTRIC_CHARGING\",\n    \"DISABLED_FACILITY\"\n  ],\n  \"disabledFacilityLocation\": \"BACK\",\n  \"isActive\": true\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/admin/parking-areas",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "park-relay",
+            "admin",
+            "parking-areas"
+          ]
+        },
+        "description": "Creates an active admin-managed parking area. Requires an admin bearer token."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "const area = json.data || json;",
+              "if (area && area.id) {",
+              "  pm.collectionVariables.set('parkingAreaId', area.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "User - Submit Parking Area Drop Pin",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Green Park Mall\",\n  \"description\": \"Side Parking\",\n  \"centerLat\": 23.7806,\n  \"centerLng\": 90.4074,\n  \"parkingCost\": \"FREE\",\n  \"parkingAreaTypes\": [\n    \"ELECTRIC_CHARGING\"\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/parking-areas",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "park-relay",
+            "parking-areas"
+          ]
+        },
+        "description": "Submits a user-created parking area point from the mobile Drop Pin flow. The submitted area is inactive by default until reviewed/admin approved."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "const area = json.data || json;",
+              "if (area && area.id) {",
+              "  pm.collectionVariables.set('parkingAreaId', area.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Search Parking Areas By Type",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/parking-areas/search?latitude=23.7806&longitude=90.4074&radiusMeters=1000&parkingCost=PAID&parkingAreaTypes=ELECTRIC_CHARGING,DISABLED_FACILITY",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "park-relay",
+            "parking-areas",
+            "search"
+          ],
+          "query": [
+            {
+              "key": "latitude",
+              "value": "23.7806"
+            },
+            {
+              "key": "longitude",
+              "value": "90.4074"
+            },
+            {
+              "key": "radiusMeters",
+              "value": "1000"
+            },
+            {
+              "key": "parkingCost",
+              "value": "PAID"
+            },
+            {
+              "key": "parkingAreaTypes",
+              "value": "ELECTRIC_CHARGING,DISABLED_FACILITY"
+            }
+          ]
+        },
+        "description": "Checks that created active areas can be searched by cost, radius, and multiple parkingAreaTypes."
+      }
+    }
+  ]
+}

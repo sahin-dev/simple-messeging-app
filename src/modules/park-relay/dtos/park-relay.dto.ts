@@ -7,12 +7,14 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
+  MaxLength,
   Min,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { ParkingCost } from 'src/common/enums';
+import { DisabledFacilityLocation, ParkingAreaType, ParkingCost } from 'src/common/enums';
 
 export enum ParkingSearchStatusDto {
   IDLE = 'IDLE',
@@ -130,6 +132,18 @@ export class AnswerPaidParkingPromptDto {
 
 export class ParkingAreaPointDto extends ParkingCoordinatesDto {}
 
+const toParkingAreaTypeArray = ({ value }: { value: unknown }) => {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => String(item).split(',')).filter(Boolean);
+  }
+
+  return String(value).split(',').filter(Boolean);
+};
+
 export class CreateParkingAreaDto {
   @IsOptional()
   @IsString()
@@ -155,6 +169,23 @@ export class CreateParkingAreaDto {
   parkingCost: ParkingCost;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  parkingFee?: number;
+
+  @IsOptional()
+  @Transform(toParkingAreaTypeArray)
+  @IsArray()
+  @IsEnum(ParkingAreaType, { each: true })
+  parkingAreaTypes?: ParkingAreaType[];
+
+  @ValidateIf((dto) => dto.parkingAreaTypes?.includes(ParkingAreaType.DISABLED_FACILITY))
+  @IsOptional()
+  @IsEnum(DisabledFacilityLocation)
+  disabledFacilityLocation?: DisabledFacilityLocation;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }
@@ -173,6 +204,27 @@ export class SubmitParkingAreaPointDto {
 
   @IsNumber()
   centerLng: number;
+
+  @IsOptional()
+  @IsEnum(ParkingCost)
+  parkingCost?: ParkingCost;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  parkingFee?: number;
+
+  @IsOptional()
+  @Transform(toParkingAreaTypeArray)
+  @IsArray()
+  @IsEnum(ParkingAreaType, { each: true })
+  parkingAreaTypes?: ParkingAreaType[];
+
+  @ValidateIf((dto) => dto.parkingAreaTypes?.includes(ParkingAreaType.DISABLED_FACILITY))
+  @IsOptional()
+  @IsEnum(DisabledFacilityLocation)
+  disabledFacilityLocation?: DisabledFacilityLocation;
 }
 
 export class SearchParkingAreaDto {
@@ -183,6 +235,16 @@ export class SearchParkingAreaDto {
   @IsOptional()
   @IsEnum(ParkingCost)
   parkingCost?: ParkingCost;
+
+  @IsOptional()
+  @Transform(toParkingAreaTypeArray)
+  @IsArray()
+  @IsEnum(ParkingAreaType, { each: true })
+  parkingAreaTypes?: ParkingAreaType[];
+
+  @IsOptional()
+  @IsEnum(DisabledFacilityLocation)
+  disabledFacilityLocation?: DisabledFacilityLocation;
 
   @IsOptional()
   @Transform(({ value }) => {
@@ -249,6 +311,37 @@ export class UpdateParkingAreaDto {
   parkingCost?: ParkingCost;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  parkingFee?: number;
+
+  @IsOptional()
+  @Transform(toParkingAreaTypeArray)
+  @IsArray()
+  @IsEnum(ParkingAreaType, { each: true })
+  parkingAreaTypes?: ParkingAreaType[];
+
+  @ValidateIf((dto) => dto.parkingAreaTypes?.includes(ParkingAreaType.DISABLED_FACILITY))
+  @IsOptional()
+  @IsEnum(DisabledFacilityLocation)
+  disabledFacilityLocation?: DisabledFacilityLocation;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }
+
+export class CreateParkingAreaRatingDto {
+  @IsNumber()
+  @Min(1)
+  @Max(5)
+  rating: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  review?: string;
+}
+
+export class UpdateParkingAreaRatingDto extends CreateParkingAreaRatingDto {}

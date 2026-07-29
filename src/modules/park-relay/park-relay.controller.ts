@@ -17,6 +17,7 @@ import { ParkRelayService } from './park-relay.service';
 import {
   AnswerPaidParkingPromptDto,
   CreateParkingAreaDto,
+  CreateParkingAreaRatingDto,
   CreateParkingHandoffDto,
   CreateParkingSessionDto,
   ParkedEventDto,
@@ -24,6 +25,7 @@ import {
   SearchParkingAreaDto,
   SubmitParkingAreaPointDto,
   UpdateParkingAreaDto,
+  UpdateParkingAreaRatingDto,
   UpdateParkingModeDto,
 } from './dtos/park-relay.dto';
 
@@ -337,5 +339,55 @@ export class ParkRelayController {
   @ResponseMessage('Parking area deleted successfully')
   async deleteParkingArea(@Param('id') areaId: string) {
     return this.parkRelayService.deleteParkingArea(areaId);
+  }
+
+  @Post('parking-areas/:id/ratings')
+  @HttpCode(201)
+  @ResponseMessage('Parking area rating created successfully')
+  async createParkingAreaRating(
+    @GetUser('id') userId: string,
+    @Param('id') areaId: string,
+    @Body() dto: CreateParkingAreaRatingDto,
+  ) {
+    return this.parkRelayService.createParkingAreaRating(userId, areaId, dto);
+  }
+
+  @Patch('parking-areas/:id/ratings/me')
+  @HttpCode(200)
+  @ResponseMessage('Parking area rating updated successfully')
+  async updateMyParkingAreaRating(
+    @GetUser('id') userId: string,
+    @Param('id') areaId: string,
+    @Body() dto: UpdateParkingAreaRatingDto,
+  ) {
+    return this.parkRelayService.updateMyParkingAreaRating(userId, areaId, dto);
+  }
+
+  @Get('parking-areas/:id/ratings/me')
+  @HttpCode(200)
+  @ResponseMessage('My parking area rating fetched successfully')
+  async getMyParkingAreaRating(
+    @GetUser('id') userId: string,
+    @Param('id') areaId: string,
+  ) {
+    return this.parkRelayService.getMyParkingAreaRating(userId, areaId);
+  }
+
+  @Get('parking-areas/:id/ratings')
+  @HttpCode(200)
+  @ResponseMessage('Parking area ratings fetched successfully')
+  async getParkingAreaRatings(
+    @Param('id') areaId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    return this.parkRelayService.getParkingAreaRatings(areaId, page, limit);
+  }
+
+  @Get('parking-areas/:id/rating-summary')
+  @HttpCode(200)
+  @ResponseMessage('Parking area rating summary fetched successfully')
+  async getParkingAreaRatingSummary(@Param('id') areaId: string) {
+    return this.parkRelayService.getParkingAreaRatingSummary(areaId);
   }
 }
