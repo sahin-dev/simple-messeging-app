@@ -65,6 +65,22 @@ export class BlocklistService {
       where: { id: blockEntry.id },
     });
 
+    const messageRequest = await this.prismaService.messageRequest.findFirst({
+      where: {
+        senderId: blockedUserId,
+        receiverId: userId,
+
+      },
+    });
+
+    if(messageRequest) {
+      await this.prismaService.messageRequest.update({
+        where: { id: messageRequest.id },
+        data: {status:"PENDING" },
+      });
+    }
+
+
     return { message: 'User unblocked successfully' };
   }
 

@@ -21,8 +21,24 @@ export class UsefulNumberController {
   async getAllUsefulNumbers(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
+    @Query('isActive') isActive?: string,
+    @Query('category') category?: string,
   ) {
-    return this.usefulNumberService.getAllUsefulNumbers(page, limit);
+    return this.usefulNumberService.getAllUsefulNumbers(
+      Number(page),
+      Number(limit),
+      this.parseBooleanQuery(isActive),
+      category,
+    );
+  }
+
+  @Get('grouped')
+  @HttpCode(200)
+  @ResponseMessage('Grouped useful numbers fetched successfully')
+  async getGroupedUsefulNumbers(@Query('isActive') isActive?: string) {
+    return this.usefulNumberService.getGroupedUsefulNumbers(
+      this.parseBooleanQuery(isActive) ?? true,
+    );
   }
 
   @Get('search')
@@ -42,7 +58,7 @@ export class UsefulNumberController {
   async searchNearbyUsefulNumbers(
     @Query('latitude') latitude: number,
     @Query('longitude') longitude: number,
-    @Query('radiusInMeters') radiusInMeters: number = 1000,
+    @Query('radiusInMeters') radiusInMeters: number = 10000,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
   ) {
@@ -77,5 +93,21 @@ export class UsefulNumberController {
   @ResponseMessage('Useful number deleted successfully')
   async deleteUsefulNumber(@Param('id') id: string) {
     return this.usefulNumberService.deleteUsefulNumber(id);
+  }
+
+  private parseBooleanQuery(value?: string) {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+
+    if (value === 'true') {
+      return true;
+    }
+
+    if (value === 'false') {
+      return false;
+    }
+
+    return undefined;
   }
 }

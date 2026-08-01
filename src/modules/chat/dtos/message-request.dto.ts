@@ -1,4 +1,4 @@
-import { IsMongoId, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsMongoId, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 
 export class CreateMessageRequestDto {
   @IsMongoId()
@@ -6,6 +6,7 @@ export class CreateMessageRequestDto {
   @IsNotEmpty()
   receiverId: string;
 
+  @ValidateIf((dto) => !dto.presetMessageId)
   @IsString()
   @IsOptional()
   firstMessage?: string;

@@ -70,7 +70,7 @@ export class ChatService {
 
         const existingRoom = await this.getChatRoomIfExist(userId, sendMessageDto.receiver_id);
 
-        if (!existingRoom && presetMessage?.type !== 'ALERT') {
+        if (!existingRoom) {
             const request = await this.createOrUpdatePendingMessageRequest(userId, {
                 receiverId: sendMessageDto.receiver_id,
                 firstMessage: finalMessage,
@@ -367,6 +367,12 @@ export class ChatService {
         senderId: string,
         dto: CreateMessageRequestDto,
     ) {
+        const firstMessage = await this.resolveMessageRequestFirstMessage(dto);
+        await this.deleteLegacyWithdrawnMessageRequests({
+            senderId,
+            receiverId: dto.receiverId,
+        });
+
         const existingRequest = await this.prismaService.messageRequest.findUnique({
             where: {
                 senderId_receiverId: {
@@ -384,20 +390,14 @@ export class ChatService {
             throw new BadRequestException("The receiver declined this message request");
         }
 
-        if (dto.presetMessageId) {
-            const preset = await this.getActivePresetMessage(dto.presetMessageId);
-            if (preset.type === 'ALERT') {
-                throw new BadRequestException("Alert preset messages are delivered directly and do not create requests");
-            }
-        }
-
         if (existingRequest) {
             return this.prismaService.messageRequest.update({
                 where: { id: existingRequest.id },
                 data: {
-                    firstMessage: dto.firstMessage,
+                    firstMessage,
                     presetMessageId: dto.presetMessageId,
                     status: 'PENDING',
+                    roomId: null,
                 },
             });
         }
@@ -406,11 +406,28 @@ export class ChatService {
             data: {
                 senderId,
                 receiverId: dto.receiverId,
-                firstMessage: dto.firstMessage,
+                firstMessage,
                 presetMessageId: dto.presetMessageId,
                 status: 'PENDING',
             },
         });
+    }
+
+    private async resolveMessageRequestFirstMessage(dto: CreateMessageRequestDto) {
+        if (!dto.presetMessageId) {
+            if (dto.firstMessage?.trim()) {
+                throw new BadRequestException("Message requests can only include an alert preset message");
+            }
+
+            return null;
+        }
+
+        const preset = await this.getActivePresetMessage(dto.presetMessageId);
+        if (preset.type !== 'ALERT') {
+            throw new BadRequestException("Message request preset must be an alert type");
+        }
+
+        return preset.message;
     }
 
     async getChatRoomIfExist(userId: string, receiverId: string) {
@@ -439,6 +456,19 @@ export class ChatService {
 
         if (!receiver) {
             throw new NotFoundException("Receiver user not found");
+        }
+
+        const isBlockExist = await this.prismaService.blockList.findFirst({
+            where: {
+                OR: [
+                    { blocked_user_id: userId, user_id: dto.receiverId },
+                    { blocked_user_id: dto.receiverId, user_id: userId }
+                ]
+            }
+        });
+
+        if (isBlockExist) {
+            throw new BadRequestException("You can not send a message request to this account");
         }
 
         const existingRoom = await this.getChatRoomIfExist(userId, dto.receiverId);
@@ -470,15 +500,23 @@ export class ChatService {
         const senderIds = [...new Set(requests.map((request) => request.senderId))];
         const senders = await this.prismaService.user.findMany({
             where: { id: { in: senderIds } },
-            select: { id: true, nick_name: true, avatar: true, licence_id: true },
+            select: {
+                id: true,
+                nick_name: true,
+                avatar: true,
+                licence_id: true,
+                email_verified: true,
+                license_no_verified: true,
+                is_vehicle_verified: true,
+            },
         });
         const senderById = new Map(senders.map((sender) => [sender.id, sender]));
 
         return {
-            requests: requests.map((request) => ({
-                ...request,
-                sender: senderById.get(request.senderId) ?? null,
-            })),
+            requests: requests.map((request) => this.formatMessageRequestForReceiver(
+                request,
+                senderById.get(request.senderId) ?? null,
+            )),
             total,
             page: Number(page),
             limit: Number(limit),
@@ -487,34 +525,130 @@ export class ChatService {
 
     async getSentMessageRequests(userId: string, page: number = 1, limit: number = 10) {
         const skip = (Number(page) - 1) * Number(limit);
+        await this.deleteLegacyWithdrawnMessageRequests({ senderId: userId });
 
         const [requests, total] = await Promise.all([
             this.prismaService.messageRequest.findMany({
-                where: { senderId: userId },
+                where: {
+                    senderId: userId,
+                    status: { in: ['PENDING', 'ACCEPTED', 'DECLINED'] as any },
+                },
                 skip,
                 take: Number(limit),
                 orderBy: { createdAt: 'desc' },
             }),
             this.prismaService.messageRequest.count({
-                where: { senderId: userId },
+                where: {
+                    senderId: userId,
+                    status: { in: ['PENDING', 'ACCEPTED', 'DECLINED'] as any },
+                },
             }),
         ]);
 
         const receiverIds = [...new Set(requests.map((request) => request.receiverId))];
         const receivers = await this.prismaService.user.findMany({
             where: { id: { in: receiverIds } },
-            select: { id: true, nick_name: true, avatar: true, licence_id: true },
+            select: {
+                id: true,
+                nick_name: true,
+                avatar: true,
+                licence_id: true,
+                email_verified: true,
+                license_no_verified: true,
+                is_vehicle_verified: true,
+            },
         });
         const receiverById = new Map(receivers.map((receiver) => [receiver.id, receiver]));
 
         return {
-            requests: requests.map((request) => ({
-                ...request,
-                receiver: receiverById.get(request.receiverId) ?? null,
-            })),
+            requests: requests.map((request) => this.formatMessageRequestForSender(
+                request,
+                receiverById.get(request.receiverId) ?? null,
+            )),
             total,
             page: Number(page),
             limit: Number(limit),
+        };
+    }
+
+    async getMessageRequestThread(userId: string, requestId: string) {
+        const request = await this.prismaService.messageRequest.findUnique({
+            where: { id: requestId },
+        });
+
+        if (!request) {
+            throw new NotFoundException("Message request not found");
+        }
+
+        if (request.senderId !== userId && request.receiverId !== userId) {
+            throw new BadRequestException("You are not allowed to view this message request");
+        }
+
+        const otherUserId = request.senderId === userId ? request.receiverId : request.senderId;
+        const otherUser = await this.prismaService.user.findUnique({
+            where: { id: otherUserId },
+            select: {
+                id: true,
+                nick_name: true,
+                avatar: true,
+                licence_id: true,
+                email_verified: true,
+                license_no_verified: true,
+                is_vehicle_verified: true,
+                lastSeenAt: true,
+            },
+        });
+
+        const message = request.firstMessage
+            ? [{
+                id: request.id,
+                requestId: request.id,
+                chatRoom_id: null,
+                sender_id: request.senderId,
+                receiver_id: request.receiverId,
+                message: request.firstMessage,
+                type: 'REQUEST_PREVIEW',
+                createdAt: request.createdAt,
+                updatedAt: request.updatedAt,
+                is_mine: request.senderId === userId,
+            }]
+            : [];
+
+        return {
+            type: 'MESSAGE_REQUEST',
+            request: this.formatMessageRequestState(request),
+            otherUser: otherUser ? this.attachPresence(otherUser) : null,
+            messages: message,
+            actions: this.getMessageRequestActions(request, userId),
+        };
+    }
+
+    async getMessageRequestCounts(userId: string) {
+        const [receivedPending, sentPending, sentAccepted, sentDeclined] = await Promise.all([
+            this.prismaService.messageRequest.count({
+                where: { receiverId: userId, status: 'PENDING' },
+            }),
+            this.prismaService.messageRequest.count({
+                where: { senderId: userId, status: 'PENDING' },
+            }),
+            this.prismaService.messageRequest.count({
+                where: { senderId: userId, status: 'ACCEPTED' },
+            }),
+            this.prismaService.messageRequest.count({
+                where: { senderId: userId, status: 'DECLINED' },
+            }),
+        ]);
+
+        return {
+            received: {
+                pending: receivedPending,
+            },
+            sent: {
+                pending: sentPending,
+                accepted: sentAccepted,
+                declined: sentDeclined,
+                total: sentPending + sentAccepted + sentDeclined,
+            },
         };
     }
 
@@ -561,18 +695,6 @@ export class ChatService {
                 data: { updatedAt: new Date() },
             });
 
-            if (this.socketRoomService && this.socketRoomService.server) {
-                const server = this.socketRoomService.server;
-                server.to(`user-${request.senderId}`).emit("message-request-accepted", {
-                    requestId: request.id,
-                    roomId: room.id,
-                    message: { ...deliveredMessage, is_mine: true },
-                });
-                server.to(`user-${request.receiverId}`).emit("new-message", {
-                    ...deliveredMessage,
-                    is_mine: false,
-                });
-            }
         }
 
         const updatedRequest = await this.prismaService.messageRequest.update({
@@ -582,6 +704,26 @@ export class ChatService {
                 roomId: room.id,
             },
         });
+
+        if (this.socketRoomService && this.socketRoomService.server) {
+            const server = this.socketRoomService.server;
+            server.to(`user-${request.senderId}`).emit("message-request-accepted", {
+                requestId: request.id,
+                roomId: room.id,
+                message: deliveredMessage ? { ...deliveredMessage, is_mine: true } : null,
+            });
+            server.to(`user-${request.receiverId}`).emit("message-request-accepted", {
+                requestId: request.id,
+                roomId: room.id,
+                message: deliveredMessage ? { ...deliveredMessage, is_mine: false } : null,
+            });
+            if (deliveredMessage) {
+                server.to(`user-${request.receiverId}`).emit("new-message", {
+                    ...deliveredMessage,
+                    is_mine: false,
+                });
+            }
+        }
 
         return { request: updatedRequest, room, deliveredMessage };
     }
@@ -607,6 +749,75 @@ export class ChatService {
             where: { id: request.id },
             data: { status: 'DECLINED' },
         });
+    }
+
+    async blockMessageRequestSender(userId: string, requestId: string) {
+        const request = await this.prismaService.messageRequest.findUnique({
+            where: { id: requestId },
+        });
+
+        if (!request) {
+            throw new NotFoundException("Message request not found");
+        }
+
+        if (request.receiverId !== userId) {
+            throw new BadRequestException("Only the receiver can block this message request sender");
+        }
+
+        if (request.status !== 'PENDING') {
+            throw new BadRequestException("Only pending message requests can be blocked");
+        }
+
+        const existingBlock = await this.prismaService.blockList.findUnique({
+            where: {
+                user_id_blocked_user_id: {
+                    user_id: userId,
+                    blocked_user_id: request.senderId,
+                },
+            },
+        });
+
+        const block = existingBlock ?? await this.prismaService.blockList.create({
+            data: {
+                user_id: userId,
+                blocked_user_id: request.senderId,
+            },
+        });
+
+        const updatedRequest = await this.prismaService.messageRequest.update({
+            where: { id: request.id },
+            data: { status: 'DECLINED' },
+        });
+
+        return { request: updatedRequest, block };
+    }
+
+    async withdrawMessageRequest(userId: string, requestId: string) {
+        const request = await this.prismaService.messageRequest.findUnique({
+            where: { id: requestId },
+        });
+
+        if (!request) {
+            throw new NotFoundException("Message request not found");
+        }
+
+        if (request.senderId !== userId) {
+            throw new BadRequestException("Only the sender can withdraw this message request");
+        }
+
+        if (request.status !== 'PENDING') {
+            throw new BadRequestException("Only pending message requests can be withdrawn");
+        }
+
+        await this.prismaService.messageRequest.delete({
+            where: { id: request.id },
+        });
+
+        return {
+            message: "Message request withdrawn successfully",
+            deleted: true,
+            requestId: request.id,
+        };
     }
 
     async registerDeviceKey(userId: string, dto: RegisterDeviceKeyDto) {
@@ -1091,6 +1302,88 @@ export class ChatService {
             isOnline: presence.isOnline,
             lastSeenAt: presence.lastSeenAt,
         };
+    }
+
+    private formatMessageRequestState(request: any) {
+        return {
+            id: request.id,
+            senderId: request.senderId,
+            receiverId: request.receiverId,
+            roomId: request.roomId,
+            firstMessage: request.firstMessage,
+            presetMessageId: request.presetMessageId,
+            status: request.status,
+            createdAt: request.createdAt,
+            updatedAt: request.updatedAt,
+        };
+    }
+
+    private formatMessageRequestForReceiver(request: any, sender: any) {
+        return {
+            ...this.formatMessageRequestState(request),
+            sender: sender ? this.attachPresence(sender) : null,
+            canAccept: request.status === 'PENDING',
+            canReject: request.status === 'PENDING',
+            canBlock: request.status === 'PENDING',
+            threadType: 'MESSAGE_REQUEST',
+        };
+    }
+
+    private formatMessageRequestForSender(request: any, receiver: any) {
+        return {
+            ...this.formatMessageRequestState(request),
+            receiver: receiver ? this.attachPresence(receiver) : null,
+            canWithdraw: request.status === 'PENDING',
+            canMessage: request.status === 'ACCEPTED' && Boolean(request.roomId),
+            threadType: request.status === 'ACCEPTED' ? 'CHAT_ROOM' : 'MESSAGE_REQUEST',
+        };
+    }
+
+    private getMessageRequestActions(request: any, userId: string) {
+        if (request.status !== 'PENDING') {
+            return [];
+        }
+
+        if (request.receiverId === userId) {
+            return ['ACCEPT', 'REJECT', 'BLOCK'];
+        }
+
+        if (request.senderId === userId) {
+            return ['WITHDRAW'];
+        }
+
+        return [];
+    }
+
+    private async deleteLegacyWithdrawnMessageRequests(where: {
+        senderId?: string;
+        receiverId?: string;
+    }) {
+        const filter: Record<string, string> = {
+            status: 'WITHDRAWN',
+        };
+
+        if (where.senderId) {
+            filter.senderId = where.senderId;
+        }
+
+        if (where.receiverId) {
+            filter.receiverId = where.receiverId;
+        }
+
+        try {
+            await this.prismaService.$runCommandRaw({
+                delete: 'message_requests',
+                deletes: [
+                    {
+                        q: filter,
+                        limit: 0,
+                    },
+                ],
+            });
+        } catch (error: any) {
+            this.logger.warn(`Failed to clean up legacy withdrawn message requests: ${error.message}`);
+        }
     }
 
     /**
