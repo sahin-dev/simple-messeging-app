@@ -110,6 +110,25 @@ export class ChatController {
         return this.chatService.getSentMessageRequests(payload.id, page, limit);
     }
 
+    @Get("message-requests/counts")
+    @HttpCode(200)
+    @ResponseMessage("Message request counts fetched successfully")
+    async getMessageRequestCounts(@Req() request: Request) {
+        const payload = request["payload"] as TokenPayload;
+        return this.chatService.getMessageRequestCounts(payload.id);
+    }
+
+    @Get("message-requests/:id/thread")
+    @HttpCode(200)
+    @ResponseMessage("Message request thread fetched successfully")
+    async getMessageRequestThread(
+        @Req() request: Request,
+        @Param("id") requestId: string,
+    ) {
+        const payload = request["payload"] as TokenPayload;
+        return this.chatService.getMessageRequestThread(payload.id, requestId);
+    }
+
     @Post("message-requests/:id/accept")
     @HttpCode(200)
     @ResponseMessage("Message request accepted successfully")
@@ -130,6 +149,39 @@ export class ChatController {
     ) {
         const payload = request["payload"] as TokenPayload;
         return this.chatService.declineMessageRequest(payload.id, requestId);
+    }
+
+    @Post("message-requests/:id/reject")
+    @HttpCode(200)
+    @ResponseMessage("Message request rejected successfully")
+    async rejectMessageRequest(
+        @Req() request: Request,
+        @Param("id") requestId: string,
+    ) {
+        const payload = request["payload"] as TokenPayload;
+        return this.chatService.declineMessageRequest(payload.id, requestId);
+    }
+
+    @Post("message-requests/:id/block")
+    @HttpCode(200)
+    @ResponseMessage("Message request sender blocked successfully")
+    async blockMessageRequestSender(
+        @Req() request: Request,
+        @Param("id") requestId: string,
+    ) {
+        const payload = request["payload"] as TokenPayload;
+        return this.chatService.blockMessageRequestSender(payload.id, requestId);
+    }
+
+    @Post("message-requests/:id/withdraw")
+    @HttpCode(200)
+    @ResponseMessage("Message request withdrawn successfully")
+    async withdrawMessageRequest(
+        @Req() request: Request,
+        @Param("id") requestId: string,
+    ) {
+        const payload = request["payload"] as TokenPayload;
+        return this.chatService.withdrawMessageRequest(payload.id, requestId);
     }
 
     @Post("e2ee/device-key")

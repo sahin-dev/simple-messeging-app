@@ -96,6 +96,99 @@ const sampleFaqs = [
   },
 ] as const;
 
+const sampleUsefulNumbers = [
+  {
+    title: 'Police',
+    description: 'For police assistance',
+    phone: '999',
+    category: 'EMERGENCY_CONTACT',
+    icon: 'police',
+    sortOrder: 1,
+    latitude: 23.7806,
+    longitude: 90.4074,
+  },
+  {
+    title: 'Ambulance',
+    description: 'Medical emergency',
+    phone: '999',
+    category: 'EMERGENCY_CONTACT',
+    icon: 'ambulance',
+    sortOrder: 2,
+    latitude: 23.781,
+    longitude: 90.4078,
+  },
+  {
+    title: 'Fire Brigade',
+    description: 'Fire emergencies',
+    phone: '999',
+    category: 'EMERGENCY_CONTACT',
+    icon: 'fire_truck',
+    sortOrder: 3,
+    latitude: 23.7799,
+    longitude: 90.4068,
+  },
+  {
+    title: 'Women Helpline',
+    description: 'For women in distress',
+    phone: '109',
+    category: 'EMERGENCY_CONTACT',
+    icon: 'women_helpline',
+    sortOrder: 4,
+    latitude: 23.7802,
+    longitude: 90.4082,
+  },
+  {
+    title: 'Roadside Assistance',
+    description: '24*7 vehicle assistance',
+    phone: '000',
+    category: 'VEHICLE_ASSISTANCE',
+    icon: 'roadside_assistance',
+    sortOrder: 1,
+    latitude: 23.7814,
+    longitude: 90.4069,
+  },
+  {
+    title: 'Tow Truck Services',
+    description: 'For Vehicle Towing',
+    phone: '000',
+    category: 'VEHICLE_ASSISTANCE',
+    icon: 'tow_truck',
+    sortOrder: 2,
+    latitude: 23.7795,
+    longitude: 90.4076,
+  },
+  {
+    title: 'Highway Helpline',
+    description: 'For highway assistance',
+    phone: '000',
+    category: 'VEHICLE_ASSISTANCE',
+    icon: 'highway',
+    sortOrder: 3,
+    latitude: 23.782,
+    longitude: 90.4085,
+  },
+  {
+    title: 'Traffic police',
+    description: 'Traffic related assistance',
+    phone: '000',
+    category: 'TRAFFIC_AND_PARKING',
+    icon: 'traffic_police',
+    sortOrder: 1,
+    latitude: 23.7808,
+    longitude: 90.4062,
+  },
+  {
+    title: 'Parking Support',
+    description: 'For parking related support',
+    phone: '000',
+    category: 'TRAFFIC_AND_PARKING',
+    icon: 'parking',
+    sortOrder: 2,
+    latitude: 23.7791,
+    longitude: 90.4059,
+  },
+] as const;
+
 async function upsertDemoUsers(password: string) {
   const users: any[] = [];
 
@@ -208,6 +301,35 @@ async function seedFaqData() {
       title: faq.title,
       description: faq.description,
     })),
+  });
+}
+
+async function seedUsefulNumberData() {
+  await prisma.usefullNumber.deleteMany({
+    where: {
+      title: {
+        in: sampleUsefulNumbers.map((number) => number.title),
+      },
+    },
+  });
+
+  await prisma.usefullNumber.createMany({
+    data: sampleUsefulNumbers.map((number) => {
+      const { latitude, longitude, ...numberData } = number;
+
+      return {
+        ...numberData,
+        location: {
+          latitude,
+          longitude,
+        },
+        geolocation: {
+          type: 'Point',
+          coordinates: [longitude, latitude],
+        },
+        isActive: true,
+      };
+    }) as any,
   });
 }
 
@@ -358,9 +480,11 @@ async function seedParkData() {
   });
 
   await seedFaqData();
+  await seedUsefulNumberData();
 
   console.log('Park seed completed.');
   console.log(`Seeded ${sampleFaqs.length} sample FAQs.`);
+  console.log(`Seeded ${sampleUsefulNumbers.length} sample useful numbers.`);
   console.table([
     { label: 'releaserUserId', value: releaser.id },
     { label: 'seekerUserId', value: seeker.id },

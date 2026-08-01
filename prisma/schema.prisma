@@ -237,14 +237,21 @@ model MessageRequest {
 }
 
 model UsefullNumber {
-  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  id          String               @id @default(auto()) @map("_id") @db.ObjectId
   title       String
+  description String?
   phone       String
-  location    location
+  category    UsefulNumberCategory @default(EMERGENCY_CONTACT)
+  icon        String?
+  sortOrder   Int                  @default(0)
+  isActive    Boolean              @default(true)
+  location    location?
   geolocation geolocation?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 
+  @@index([category])
+  @@index([isActive])
   @@map("useful_numbers")
 }
 
@@ -321,6 +328,12 @@ enum MessageRequestStatus {
   PENDING
   ACCEPTED
   DECLINED
+}
+
+enum UsefulNumberCategory {
+  EMERGENCY_CONTACT
+  VEHICLE_ASSISTANCE
+  TRAFFIC_AND_PARKING
 }
 
 model UserDeviceKey {

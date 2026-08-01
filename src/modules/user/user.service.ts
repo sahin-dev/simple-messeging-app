@@ -121,6 +121,16 @@ export class UserService {
      * @returns 
      */
     async searchUsers(userId: string, query: string, page: number, limit: number) {
+        const declinedRequests = await this.prismaService.messageRequest.findMany({
+            where: {
+                senderId: userId,
+                status: 'DECLINED',
+            },
+            select: {
+                receiverId: true,
+            },
+        });
+        const declinedReceiverIds = declinedRequests.map((request) => request.receiverId);
 
         const totalUsers = await this.prismaService.user.count({
             where: {
@@ -138,7 +148,7 @@ export class UserService {
                 },
 
                 id: {
-                    not: userId
+                    notIn: [userId, ...declinedReceiverIds],
                 },
 
                 OR: [
@@ -164,7 +174,7 @@ export class UserService {
                 },
 
                 id: {
-                    not: userId
+                    notIn: [userId, ...declinedReceiverIds],
                 },
                 OR: [
                     { nick_name: { contains: query, mode: "insensitive" } },

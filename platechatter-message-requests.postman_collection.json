@@ -1,0 +1,714 @@
+{
+  "info": {
+    "name": "PLATEChatter - Message Requests",
+    "_postman_id": "platechatter-message-requests-simple",
+    "description": "Simple collection for the message request flow: send, view inbox/sent/counts/thread, accept, reject, block, and withdraw.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "USER_JWT_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "receiverId",
+      "value": "RECEIVER_USER_ID_HERE",
+      "type": "string"
+    },
+    {
+      "key": "alertPresetMessageId",
+      "value": "ALERT_PRESET_MESSAGE_ID_HERE",
+      "type": "string"
+    },
+    {
+      "key": "messageRequestId",
+      "value": "MESSAGE_REQUEST_ID_HERE",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Create Message Request - Empty",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"receiverId\": \"{{receiverId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/chat/message-requests",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "chat",
+            "message-requests"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "201 - Created Empty Request",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"receiverId\": \"{{receiverId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/chat/message-requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "message-requests"
+              ]
+            }
+          },
+          "status": "Created",
+          "code": 201,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"id\": \"66b100000000000000000001\",\n  \"senderId\": \"66b000000000000000000001\",\n  \"receiverId\": \"66b000000000000000000002\",\n  \"roomId\": null,\n  \"firstMessage\": null,\n  \"presetMessageId\": null,\n  \"status\": \"PENDING\",\n  \"createdAt\": \"2026-07-30T02:00:00.000Z\",\n  \"updatedAt\": \"2026-07-30T02:00:00.000Z\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Create Message Request - Alert Preset",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"receiverId\": \"{{receiverId}}\",\n  \"presetMessageId\": \"{{alertPresetMessageId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/chat/message-requests",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "chat",
+            "message-requests"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201) {",
+              "  const json = pm.response.json();",
+              "  const data = json.data || json;",
+              "  if (data.id) pm.collectionVariables.set('messageRequestId', data.id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "201 - Created Alert Request",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"receiverId\": \"{{receiverId}}\",\n  \"presetMessageId\": \"{{alertPresetMessageId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/chat/message-requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "message-requests"
+              ]
+            }
+          },
+          "status": "Created",
+          "code": 201,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"id\": \"66b100000000000000000001\",\n  \"senderId\": \"66b000000000000000000001\",\n  \"receiverId\": \"66b000000000000000000002\",\n  \"roomId\": null,\n  \"firstMessage\": \"Your vehicle is blocking my spot.\",\n  \"presetMessageId\": \"66b200000000000000000001\",\n  \"status\": \"PENDING\",\n  \"createdAt\": \"2026-07-30T02:00:00.000Z\",\n  \"updatedAt\": \"2026-07-30T02:00:00.000Z\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get Inbox Requests",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/chat/message-requests/inbox?page=1&limit=10",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "chat",
+            "message-requests",
+            "inbox"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "200 - Inbox",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/message-requests/inbox?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "message-requests",
+                "inbox"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"requests\": [\n    {\n      \"id\": \"66b100000000000000000001\",\n      \"senderId\": \"66b000000000000000000001\",\n      \"receiverId\": \"66b000000000000000000002\",\n      \"roomId\": null,\n      \"firstMessage\": \"Your vehicle is blocking my spot.\",\n      \"presetMessageId\": \"66b200000000000000000001\",\n      \"status\": \"PENDING\",\n      \"sender\": {\n        \"id\": \"66b000000000000000000001\",\n        \"nick_name\": \"Emma Wilson\",\n        \"avatar\": null,\n        \"licence_id\": \"SAH445\",\n        \"email_verified\": true,\n        \"license_no_verified\": true,\n        \"is_vehicle_verified\": true,\n        \"isOnline\": false,\n        \"lastSeenAt\": null\n      },\n      \"canAccept\": true,\n      \"canReject\": true,\n      \"canBlock\": true,\n      \"threadType\": \"MESSAGE_REQUEST\"\n    }\n  ],\n  \"total\": 1,\n  \"page\": 1,\n  \"limit\": 10\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get Sent Requests",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/chat/message-requests/sent?page=1&limit=10",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "chat",
+            "message-requests",
+            "sent"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "200 - Sent",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/message-requests/sent?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "message-requests",
+                "sent"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"requests\": [\n    {\n      \"id\": \"66b100000000000000000001\",\n      \"senderId\": \"66b000000000000000000001\",\n      \"receiverId\": \"66b000000000000000000002\",\n      \"roomId\": null,\n      \"firstMessage\": \"Your vehicle is blocking my spot.\",\n      \"presetMessageId\": \"66b200000000000000000001\",\n      \"status\": \"PENDING\",\n      \"receiver\": {\n        \"id\": \"66b000000000000000000002\",\n        \"nick_name\": \"Sophia Miller\",\n        \"avatar\": null,\n        \"licence_id\": \"WER1234\",\n        \"email_verified\": true,\n        \"license_no_verified\": true,\n        \"is_vehicle_verified\": true,\n        \"isOnline\": false,\n        \"lastSeenAt\": null\n      },\n      \"canWithdraw\": true,\n      \"canMessage\": false,\n      \"threadType\": \"MESSAGE_REQUEST\"\n    }\n  ],\n  \"total\": 1,\n  \"page\": 1,\n  \"limit\": 10\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get Request Counts",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/chat/message-requests/counts",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "chat",
+            "message-requests",
+            "counts"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "200 - Counts",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/message-requests/counts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "message-requests",
+                "counts"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"received\": {\n    \"pending\": 3\n  },\n  \"sent\": {\n    \"pending\": 2,\n    \"accepted\": 1,\n    \"declined\": 1,\n    \"total\": 4\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get Request Thread",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/chat/message-requests/{{messageRequestId}}/thread",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "chat",
+            "message-requests",
+            "{{messageRequestId}}",
+            "thread"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "200 - Thread",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/message-requests/{{messageRequestId}}/thread",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "message-requests",
+                "{{messageRequestId}}",
+                "thread"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"type\": \"MESSAGE_REQUEST\",\n  \"request\": {\n    \"id\": \"66b100000000000000000001\",\n    \"senderId\": \"66b000000000000000000001\",\n    \"receiverId\": \"66b000000000000000000002\",\n    \"roomId\": null,\n    \"firstMessage\": \"Your vehicle is blocking my spot.\",\n    \"presetMessageId\": \"66b200000000000000000001\",\n    \"status\": \"PENDING\"\n  },\n  \"otherUser\": {\n    \"id\": \"66b000000000000000000001\",\n    \"nick_name\": \"Emma Wilson\",\n    \"avatar\": null,\n    \"licence_id\": \"SAH445\",\n    \"email_verified\": true,\n    \"license_no_verified\": true,\n    \"is_vehicle_verified\": true,\n    \"isOnline\": false,\n    \"lastSeenAt\": null\n  },\n  \"messages\": [\n    {\n      \"id\": \"66b100000000000000000001\",\n      \"requestId\": \"66b100000000000000000001\",\n      \"chatRoom_id\": null,\n      \"sender_id\": \"66b000000000000000000001\",\n      \"receiver_id\": \"66b000000000000000000002\",\n      \"message\": \"Your vehicle is blocking my spot.\",\n      \"type\": \"REQUEST_PREVIEW\",\n      \"is_mine\": false\n    }\n  ],\n  \"actions\": [\n    \"ACCEPT\",\n    \"REJECT\",\n    \"BLOCK\"\n  ]\n}"
+        }
+      ]
+    },
+    {
+      "name": "Accept Request",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/chat/message-requests/{{messageRequestId}}/accept",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "chat",
+            "message-requests",
+            "{{messageRequestId}}",
+            "accept"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "200 - Accepted",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/message-requests/{{messageRequestId}}/accept",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "message-requests",
+                "{{messageRequestId}}",
+                "accept"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"request\": {\n    \"id\": \"66b100000000000000000001\",\n    \"senderId\": \"66b000000000000000000001\",\n    \"receiverId\": \"66b000000000000000000002\",\n    \"roomId\": \"66b300000000000000000001\",\n    \"firstMessage\": \"Your vehicle is blocking my spot.\",\n    \"presetMessageId\": \"66b200000000000000000001\",\n    \"status\": \"ACCEPTED\"\n  },\n  \"room\": {\n    \"id\": \"66b300000000000000000001\",\n    \"user1_id\": \"66b000000000000000000001\",\n    \"user2_id\": \"66b000000000000000000002\"\n  },\n  \"deliveredMessage\": {\n    \"id\": \"66b400000000000000000001\",\n    \"chatRoom_id\": \"66b300000000000000000001\",\n    \"sender_id\": \"66b000000000000000000001\",\n    \"receiver_id\": \"66b000000000000000000002\",\n    \"message\": \"Your vehicle is blocking my spot.\"\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Reject Request",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/chat/message-requests/{{messageRequestId}}/reject",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "chat",
+            "message-requests",
+            "{{messageRequestId}}",
+            "reject"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "200 - Rejected",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/message-requests/{{messageRequestId}}/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "message-requests",
+                "{{messageRequestId}}",
+                "reject"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"id\": \"66b100000000000000000001\",\n  \"senderId\": \"66b000000000000000000001\",\n  \"receiverId\": \"66b000000000000000000002\",\n  \"roomId\": null,\n  \"firstMessage\": \"Your vehicle is blocking my spot.\",\n  \"presetMessageId\": \"66b200000000000000000001\",\n  \"status\": \"DECLINED\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Block Request Sender",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/chat/message-requests/{{messageRequestId}}/block",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "chat",
+            "message-requests",
+            "{{messageRequestId}}",
+            "block"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "200 - Blocked",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/message-requests/{{messageRequestId}}/block",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "message-requests",
+                "{{messageRequestId}}",
+                "block"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"request\": {\n    \"id\": \"66b100000000000000000001\",\n    \"senderId\": \"66b000000000000000000001\",\n    \"receiverId\": \"66b000000000000000000002\",\n    \"roomId\": null,\n    \"firstMessage\": \"Your vehicle is blocking my spot.\",\n    \"presetMessageId\": \"66b200000000000000000001\",\n    \"status\": \"DECLINED\"\n  },\n  \"block\": {\n    \"id\": \"66b500000000000000000001\",\n    \"user_id\": \"66b000000000000000000002\",\n    \"blocked_user_id\": \"66b000000000000000000001\"\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Withdraw Sent Request",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/chat/message-requests/{{messageRequestId}}/withdraw",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "chat",
+            "message-requests",
+            "{{messageRequestId}}",
+            "withdraw"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "200 - Withdrawn",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat/message-requests/{{messageRequestId}}/withdraw",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "message-requests",
+                "{{messageRequestId}}",
+                "withdraw"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"Message request withdrawn successfully\",\n  \"deleted\": true,\n  \"requestId\": \"66b100000000000000000001\"\n}"
+        }
+      ]
+    }
+  ]
+}
