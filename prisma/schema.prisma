@@ -487,6 +487,7 @@ model SavedParkingLocation {
   id         String            @id @default(auto()) @map("_id") @db.ObjectId
   userId     String            @db.ObjectId
   user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  spotId     String?           @db.ObjectId
   latitude   Float
   longitude  Float
   accuracy   Float?
@@ -502,6 +503,7 @@ model SavedParkingLocation {
 
   @@index([userId])
   @@index([userId, isActive])
+  @@index([spotId])
   @@map("saved_parking_locations")
 }
 
@@ -565,6 +567,7 @@ model ParkingArea {
   parkingFee               Float?
   parkingAreaTypes         ParkingAreaType[]          @default([])
   disabledFacilityLocation DisabledFacilityLocation?
+  totalSpots               Int?
   isActive                 Boolean                    @default(false)
   createdById              String                     @db.ObjectId
   createdAt                DateTime                   @default(now())
@@ -665,13 +668,6 @@ enum AuthProvider {
   PASSWORD
   GOOGLE
   APPLE
-}
-
-enum ParkingType {
-  SPOT
-  STREET
-  GARAGE
-  LOT
 }
 
 enum ParkingCost {

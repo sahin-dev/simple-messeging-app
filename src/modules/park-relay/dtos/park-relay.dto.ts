@@ -51,6 +51,24 @@ export class CreateParkingHandoffDto extends ParkingCoordinatesDto {
   spotId?: string;
 }
 
+export class AcceptHandoffAndParkDto {
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @IsOptional()
+  @IsString()
+  photoUrl?: string;
+
+  @IsOptional()
+  @IsNumber()
+  accuracy?: number;
+
+  @IsOptional()
+  @IsNumber()
+  confidence?: number;
+}
+
 export class SaveParkingLocationDto extends ParkingCoordinatesDto {
   @IsOptional()
   @IsNumber()
@@ -63,6 +81,10 @@ export class SaveParkingLocationDto extends ParkingCoordinatesDto {
   @IsOptional()
   @IsEnum(ParkingSaveSourceDto)
   source?: ParkingSaveSourceDto;
+
+  @IsOptional()
+  @IsString()
+  spotId?: string;
 
   @IsOptional()
   @IsEnum(ParkingCost)
@@ -168,10 +190,10 @@ export class CreateParkingAreaDto {
   @IsEnum(ParkingCost)
   parkingCost: ParkingCost;
 
-  @IsOptional()
+  @ValidateIf((dto) => dto.parkingCost === ParkingCost.PAID)
   @Type(() => Number)
   @IsNumber()
-  @Min(0)
+  @Min(0.01)
   parkingFee?: number;
 
   @IsOptional()
@@ -184,6 +206,12 @@ export class CreateParkingAreaDto {
   @IsOptional()
   @IsEnum(DisabledFacilityLocation)
   disabledFacilityLocation?: DisabledFacilityLocation;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  totalSpots?: number;
 
   @IsOptional()
   @IsBoolean()
@@ -209,10 +237,10 @@ export class SubmitParkingAreaPointDto {
   @IsEnum(ParkingCost)
   parkingCost?: ParkingCost;
 
-  @IsOptional()
+  @ValidateIf((dto) => dto.parkingCost === ParkingCost.PAID)
   @Type(() => Number)
   @IsNumber()
-  @Min(0)
+  @Min(0.01)
   parkingFee?: number;
 
   @IsOptional()
@@ -225,6 +253,12 @@ export class SubmitParkingAreaPointDto {
   @IsOptional()
   @IsEnum(DisabledFacilityLocation)
   disabledFacilityLocation?: DisabledFacilityLocation;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  totalSpots?: number;
 }
 
 export class SearchParkingAreaDto {
@@ -310,10 +344,10 @@ export class UpdateParkingAreaDto {
   @IsEnum(ParkingCost)
   parkingCost?: ParkingCost;
 
-  @IsOptional()
+  @ValidateIf((dto) => dto.parkingCost === ParkingCost.PAID)
   @Type(() => Number)
   @IsNumber()
-  @Min(0)
+  @Min(0.01)
   parkingFee?: number;
 
   @IsOptional()
@@ -326,6 +360,12 @@ export class UpdateParkingAreaDto {
   @IsOptional()
   @IsEnum(DisabledFacilityLocation)
   disabledFacilityLocation?: DisabledFacilityLocation;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  totalSpots?: number;
 
   @IsOptional()
   @IsBoolean()

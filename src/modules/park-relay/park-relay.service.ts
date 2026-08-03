@@ -13,6 +13,7 @@ import { NotificationEventTypeEnum } from '../notification/dtos/notification-eve
 import { FireBaseClient } from '../notification/providers/firebase.provider';
 import { DisabledFacilityLocation, ParkingAreaType, ParkingCost } from 'src/common/enums';
 import {
+  AcceptHandoffAndParkDto,
   AnswerPaidParkingPromptDto,
   CreateParkingAreaDto,
   CreateParkingAreaRatingDto,
@@ -156,12 +157,14 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     await this.cleanupExpiredHandoffs();
     await this.assertNoUnexpiredHandoff(userId);
 
+    const resolvedSpotId = dto.spotId ?? await this.resolveActiveSavedParkingSpotId(userId);
+
     const expiresAt = new Date(Date.now() + this.HANDOFF_WINDOW_MINUTES * 60 * 1000);
     const approximateLocation = this.buildApproximateLocation(dto.latitude, dto.longitude);
     const handoff = await this.prismaService.parkingHandoff.create({
       data: {
         releaserId: userId,
-        spotId: dto.spotId,
+        spotId: resolvedSpotId,
         latitude: dto.latitude,
         longitude: dto.longitude,
         approxLatitude: approximateLocation.latitude,
@@ -240,6 +243,41 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       ...accepted,
       secondsAddedAfterAcceptance: this.ACCEPTED_HANDOFF_WINDOW_MINUTES * 60,
       googleMapsLink: this.buildGoogleMapsLink(handoff.latitude, handoff.longitude, 'driving'),
+    };
+  }
+
+  async acceptHandoffAndPark(userId: string, handoffId: string, dto: AcceptHandoffAndParkDto) {
+    await this.acceptHandoff(userId, handoffId);
+    const occupied = await this.markHandoffOccupied(userId, handoffId);
+
+    const areasBySpotId = await this.getParkingAreaSummariesBySpotIds([occupied.spotId]);
+    const parkingArea = occupied.spotId ? areasBySpotId.get(occupied.spotId) ?? null : null;
+    const parkingType = parkingArea?.parkingCost === ParkingCost.FREE ? ParkingCost.FREE : undefined;
+
+    const savedParking = await this.saveParkingLocation(userId, {
+      latitude: occupied.latitude,
+      longitude: occupied.longitude,
+      accuracy: dto.accuracy,
+      confidence: dto.confidence,
+      source: ParkingSaveSourceDto.AUTO,
+      spotId: occupied.spotId ?? undefined,
+      parkingType,
+      note: dto.note,
+      photoUrl: dto.photoUrl,
+    }, true);
+
+    const parkingMode = await this.markParked(userId, {
+      latitude: occupied.latitude,
+      longitude: occupied.longitude,
+      accuracy: dto.accuracy,
+      confidence: dto.confidence,
+    });
+
+    return {
+      handoff: this.attachParkingAreaSummary(occupied, areasBySpotId),
+      savedParking: this.attachParkingAreaSummary(savedParking, areasBySpotId),
+      parkingMode,
+      paidParkingPrompt: savedParking.paidParkingPrompt,
     };
   }
 
@@ -343,9 +381,10 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       orderBy: { createdAt: 'desc' },
     });
 
-    return handoffs
+    const nearby = handoffs
       .map((handoff) => ({
         id: handoff.id,
+        spotId: handoff.spotId,
         status: handoff.status,
         expiresAt: handoff.expiresAt,
         createdAt: handoff.createdAt,
@@ -364,6 +403,12 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       }))
       .filter((handoff) => handoff.distanceMeters <= radiusMeters)
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+    const areasBySpotId = await this.getParkingAreaSummariesBySpotIds(
+      nearby.map((handoff) => handoff.spotId),
+    );
+
+    return nearby.map((handoff) => this.attachParkingAreaSummary(handoff, areasBySpotId));
   }
 
   async getHandoffById(
@@ -399,7 +444,9 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     const responseLatitude = canSeeExactLocation ? handoff.latitude : approximateLocation.latitude;
     const responseLongitude = canSeeExactLocation ? handoff.longitude : approximateLocation.longitude;
 
-    return {
+    const areasBySpotId = await this.getParkingAreaSummariesBySpotIds([handoff.spotId]);
+
+    return this.attachParkingAreaSummary({
       id: handoff.id,
       releaserId: handoff.releaserId,
       seekerId: handoff.seekerId,
@@ -419,7 +466,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       googleMapsLink: canSeeExactLocation
         ? this.buildGoogleMapsLink(handoff.latitude, handoff.longitude, 'driving')
         : null,
-    };
+    }, areasBySpotId);
   }
 
   async saveParkingLocation(
@@ -442,6 +489,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
 
     const savedParkingData = {
       userId,
+      spotId: dto.spotId,
       latitude: dto.latitude,
       longitude: dto.longitude,
       accuracy: dto.accuracy,
@@ -514,12 +562,15 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundException('Saved parking location not found');
     }
 
-    const parkingSession = await this.prismaService.parkingSession.findFirst({
-      where: { userId, status: 'ACTIVE' },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [parkingSession, areasBySpotId] = await Promise.all([
+      this.prismaService.parkingSession.findFirst({
+        where: { userId, status: 'ACTIVE' },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.getParkingAreaSummariesBySpotIds([saved.spotId]),
+    ]);
 
-    return {
+    return this.attachParkingAreaSummary({
       ...saved,
       googleMapsWalkingLink: this.buildGoogleMapsLink(saved.latitude, saved.longitude, 'walking'),
       parkingSession: parkingSession
@@ -532,7 +583,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
             ),
           }
         : null,
-    };
+    }, areasBySpotId);
   }
 
   async getSavedParkingHistory(userId: string, page = 1, limit = 20) {
@@ -554,15 +605,19 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       }),
     ]);
 
+    const areasBySpotId = await this.getParkingAreaSummariesBySpotIds(
+      locations.map((location) => location.spotId),
+    );
+
     return {
-      locations: locations.map((location) => ({
+      locations: locations.map((location) => this.attachParkingAreaSummary({
         ...location,
         googleMapsWalkingLink: this.buildGoogleMapsLink(
           location.latitude,
           location.longitude,
           'walking',
         ),
-      })),
+      }, areasBySpotId)),
       total,
       page: normalizedPage,
       limit: normalizedLimit,
@@ -878,6 +933,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
           parkingAreaTypes,
           dto.disabledFacilityLocation,
         ) as any,
+        totalSpots: dto.totalSpots,
         isActive: dto.isActive ?? true,
         createdById: adminId,
       },
@@ -901,21 +957,24 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
           parkingAreaTypes,
           dto.disabledFacilityLocation,
         ) as any,
+        totalSpots: dto.totalSpots,
         isActive: false,
         createdById: userId,
       },
     });
   }
 
-  async getParkingAreas(page = 1, limit = 20) {
+  async getParkingAreas(page = 1, limit = 20, isActive?: boolean) {
     const skip = (Number(page) - 1) * Number(limit);
+    const where = isActive !== undefined ? { isActive } : {};
     const [areas, total] = await Promise.all([
       this.prismaService.parkingArea.findMany({
+        where,
         skip,
         take: Number(limit),
         orderBy: { createdAt: 'desc' },
       }),
-      this.prismaService.parkingArea.count(),
+      this.prismaService.parkingArea.count({ where }),
     ]);
 
     return { areas, total, page: Number(page), limit: Number(limit) };
@@ -1068,6 +1127,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
           dto.disabledFacilityLocation,
           area.disabledFacilityLocation as any,
         ) as any,
+        totalSpots: dto.totalSpots,
         isActive: dto.isActive,
       },
     });
@@ -1416,6 +1476,16 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async resolveActiveSavedParkingSpotId(userId: string): Promise<string | undefined> {
+    const activeSaved = await this.prismaService.savedParkingLocation.findFirst({
+      where: { userId, isActive: true },
+      orderBy: { createdAt: 'desc' },
+      select: { spotId: true },
+    });
+
+    return activeSaved?.spotId ?? undefined;
+  }
+
   private async assertNoUnexpiredHandoff(userId: string) {
     const existingHandoff = await this.prismaService.parkingHandoff.findFirst({
       where: {
@@ -1651,6 +1721,55 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
         data: { isActive: false },
       }),
     ]);
+  }
+
+  private async getParkingAreaSummariesBySpotIds(
+    spotIds: Array<string | null | undefined>,
+  ) {
+    const uniqueIds = [...new Set(spotIds.filter((id): id is string => Boolean(id)))];
+
+    if (uniqueIds.length === 0) {
+      return new Map<string, {
+        id: string;
+        name: string | null;
+        description: string | null;
+        rating: number | null;
+        reviewCount: number;
+        totalSpots: number | null;
+        parkingCost: ParkingCost | null;
+        parkingFee: number | null;
+        parkingAreaTypes: ParkingAreaType[];
+        disabledFacilityLocation: DisabledFacilityLocation | null;
+      }>();
+    }
+
+    const areas = await this.prismaService.parkingArea.findMany({
+      where: { id: { in: uniqueIds } },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        rating: true,
+        reviewCount: true,
+        totalSpots: true,
+        parkingCost: true,
+        parkingFee: true,
+        parkingAreaTypes: true,
+        disabledFacilityLocation: true,
+      },
+    });
+
+    return new Map(areas.map((area) => [area.id, area] as const));
+  }
+
+  private attachParkingAreaSummary<T extends { spotId?: string | null }>(
+    record: T,
+    areasBySpotId: Map<string, unknown>,
+  ) {
+    return {
+      ...record,
+      parkingArea: record.spotId ? (areasBySpotId.get(record.spotId) ?? null) : null,
+    };
   }
 
   private buildApproximateLocation(latitude: number, longitude: number) {
