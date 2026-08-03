@@ -338,6 +338,12 @@ async function seedParkData() {
   const { releaser, seeker, admin } = await upsertDemoUsers(password);
   const userIds = [releaser.id, seeker.id, admin.id];
 
+  const seededAreaNames = [
+    'Seed Central Paid Parking',
+    'Seed Riverside Free Parking',
+    'Seed Pending User Submission',
+  ];
+
   await prisma.parkingHandoff.deleteMany({
     where: {
       releaserId: { in: userIds },
@@ -364,81 +370,11 @@ async function seedParkData() {
 
   await prisma.parkingArea.deleteMany({
     where: {
-      name: {
-        in: ['Seed Central Paid Parking', 'Seed Riverside Free Parking'],
-      },
+      name: { in: seededAreaNames },
     },
   });
 
-  await prisma.savedParkingLocation.createMany({
-    data: [
-      {
-      userId: releaser.id,
-      latitude: 23.7806,
-      longitude: 90.4074,
-      accuracy: 6,
-      confidence: 0.93,
-      source: 'AUTO',
-      isActive: true,
-      parkingType: 'FREE',
-    },
-    {
-      userId: seeker.id,
-      latitude: 23.781,
-      longitude: 90.4078,
-      accuracy: 12,
-      confidence: 0.71,
-      source: 'MANUAL',
-      isActive: true,
-      parkingType: 'FREE',
-    },
-    ],
-  });
-
-  const activeHandoff = await prisma.parkingHandoff.create({
-    data: {
-      releaserId: releaser.id,
-      latitude: 23.7806,
-      longitude: 90.4074,
-      status: 'AVAILABLE',
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-    },
-  });
-
-  const acceptedHandoff = await prisma.parkingHandoff.create({
-    data: {
-      releaserId: admin.id,
-      seekerId: seeker.id,
-      latitude: 23.7799,
-      longitude: 90.4068,
-      status: 'ACCEPTED',
-      expiresAt: new Date(Date.now() + 4 * 60 * 1000),
-      acceptedAt: new Date(),
-    },
-  });
-
-  const paidSession = await prisma.parkingSession.create({
-    data: {
-      userId: releaser.id,
-      latitude: 23.7806,
-      longitude: 90.4074,
-      costType: 'PAID',
-      durationMin: 30,
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
-      status: 'ACTIVE',
-    },
-  });
-
-  const freeSession = await prisma.parkingSession.create({
-    data: {
-      userId: seeker.id,
-      latitude: 23.781,
-      longitude: 90.4078,
-      costType: 'FREE',
-      status: 'ACTIVE',
-    },
-  });
-
+  // Active, admin-managed parking areas with a polygon boundary already drawn.
   const paidArea = await prisma.parkingArea.create({
     data: {
       name: 'Seed Central Paid Parking',
@@ -448,6 +384,7 @@ async function seedParkData() {
       parkingCost: 'PAID',
       parkingFee: 20,
       parkingAreaTypes: ['ELECTRIC_CHARGING'],
+      totalSpots: 4,
       isActive: true,
       createdById: admin.id,
       polygon: [
@@ -468,6 +405,7 @@ async function seedParkData() {
       parkingCost: 'FREE',
       parkingAreaTypes: ['DISABLED_FACILITY'],
       disabledFacilityLocation: 'ALL',
+      totalSpots: 6,
       isActive: true,
       createdById: admin.id,
       polygon: [
@@ -477,6 +415,115 @@ async function seedParkData() {
         { latitude: 23.7788, longitude: 90.4064 },
       ],
     },
+  });
+
+  // A user drop-pin submission still awaiting an admin to draw the boundary and activate it.
+  const pendingArea = await prisma.parkingArea.create({
+    data: {
+      name: 'Seed Pending User Submission',
+      description: 'Drop-pin awaiting admin boundary + activation',
+      centerLat: 23.7802,
+      centerLng: 90.4071,
+      parkingCost: 'FREE',
+      parkingAreaTypes: ['ELECTRIC_CHARGING'],
+      totalSpots: 3,
+      isActive: false,
+      createdById: seeker.id,
+    },
+  });
+
+  // Saved parking locations linked back to the areas above via spotId.
+  await prisma.savedParkingLocation.createMany({
+    data: [
+      {
+        userId: releaser.id,
+        spotId: paidArea.id,
+        latitude: 23.7806,
+        longitude: 90.4074,
+        accuracy: 6,
+        confidence: 0.93,
+        source: 'AUTO',
+        isActive: true,
+        parkingType: 'PAID',
+        paidExpiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      },
+      {
+        userId: seeker.id,
+        spotId: freeArea.id,
+        latitude: 23.781,
+        longitude: 90.4078,
+        accuracy: 12,
+        confidence: 0.71,
+        source: 'MANUAL',
+        isActive: true,
+        parkingType: 'FREE',
+      },
+    ],
+  });
+
+  // AVAILABLE handoff linked to the paid area - try POST /park-relay/handoffs/:id/accept-and-park
+  // as the seeker against this id to exercise the full claim+park flow end to end.
+  const activeHandoff = await prisma.parkingHandoff.create({
+    data: {
+      releaserId: releaser.id,
+      spotId: paidArea.id,
+      latitude: 23.7806,
+      longitude: 90.4074,
+      status: 'AVAILABLE',
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    },
+  });
+
+  // Already-ACCEPTED handoff linked to the free area - useful for testing /occupied, /found, /cancel.
+  const acceptedHandoff = await prisma.parkingHandoff.create({
+    data: {
+      releaserId: admin.id,
+      seekerId: seeker.id,
+      spotId: freeArea.id,
+      latitude: 23.7799,
+      longitude: 90.4068,
+      status: 'ACCEPTED',
+      expiresAt: new Date(Date.now() + 4 * 60 * 1000),
+      acceptedAt: new Date(),
+    },
+  });
+
+  const paidSession = await prisma.parkingSession.create({
+    data: {
+      userId: releaser.id,
+      spotId: paidArea.id,
+      latitude: 23.7806,
+      longitude: 90.4074,
+      costType: 'PAID',
+      durationMin: 30,
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      status: 'ACTIVE',
+    },
+  });
+
+  const freeSession = await prisma.parkingSession.create({
+    data: {
+      userId: seeker.id,
+      spotId: freeArea.id,
+      latitude: 23.781,
+      longitude: 90.4078,
+      costType: 'FREE',
+      status: 'ACTIVE',
+    },
+  });
+
+  const rating = await prisma.parkingAreaRating.create({
+    data: {
+      parkingAreaId: paidArea.id,
+      userId: seeker.id,
+      rating: 5,
+      review: 'Convenient paid spot near downtown, worked exactly as expected.',
+    },
+  });
+
+  await prisma.parkingArea.update({
+    where: { id: paidArea.id },
+    data: { rating: 5, reviewCount: 1 },
   });
 
   await seedFaqData();
@@ -489,13 +536,16 @@ async function seedParkData() {
     { label: 'releaserUserId', value: releaser.id },
     { label: 'seekerUserId', value: seeker.id },
     { label: 'adminUserId', value: admin.id },
-    { label: 'activeHandoffId', value: activeHandoff.id },
-    { label: 'acceptedHandoffId', value: acceptedHandoff.id },
+    { label: 'paidAreaId (PAID, 4 spots, active)', value: paidArea.id },
+    { label: 'freeAreaId (FREE, 6 spots, active)', value: freeArea.id },
+    { label: 'pendingAreaId (FREE, 3 spots, isActive=false)', value: pendingArea.id },
+    { label: 'activeHandoffId (AVAILABLE, spotId=paidArea)', value: activeHandoff.id },
+    { label: 'acceptedHandoffId (ACCEPTED, spotId=freeArea)', value: acceptedHandoff.id },
     { label: 'paidSessionId', value: paidSession.id },
     { label: 'freeSessionId', value: freeSession.id },
-    { label: 'paidAreaId', value: paidArea.id },
-    { label: 'freeAreaId', value: freeArea.id },
+    { label: 'ratingId', value: rating.id },
   ]);
+  console.log('Try POST /park-relay/handoffs/{activeHandoffId}/accept-and-park as park_seeker to exercise the combined claim+park flow.');
   console.log(`Demo password for seeded users: ${passwordPlain}`);
 }
 

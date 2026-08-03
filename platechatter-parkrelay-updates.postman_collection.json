@@ -1,0 +1,676 @@
+{
+  "info": {
+    "name": "PLATEChatter - ParkRelay Updates",
+    "_postman_id": "platechatter-parkrelay-updates",
+    "description": "Focused collection for the endpoints changed/added in this session: totalSpots on ParkingArea, the admin isActive pending-queue filter, ParkingArea enrichment on handoffs/saved-parking, and the new combined accept-and-park action. Use an admin JWT for admin-only requests, a releaser JWT for the user who leaves a spot, and a seeker JWT for the user who finds/claims it.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "ADMIN_JWT_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "releaserToken",
+      "value": "RELEASER_USER_JWT_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "SEEKER_USER_JWT_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "parkingAreaId",
+      "value": "6a51fb103689cdc29e9c9607",
+      "type": "string"
+    },
+    {
+      "key": "handoffId",
+      "value": "6a51e5aa3689cdc29e9c9566",
+      "type": "string"
+    },
+    {
+      "key": "latitude",
+      "value": "23.7806",
+      "type": "string"
+    },
+    {
+      "key": "longitude",
+      "value": "90.4074",
+      "type": "string"
+    },
+    {
+      "key": "radiusMeters",
+      "value": "1000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Admin - Create Parking Area (totalSpots)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{adminToken}}", "type": "string" }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Green Park Mall\",\n  \"description\": \"Side Parking\",\n  \"centerLat\": 23.7806,\n  \"centerLng\": 90.4074,\n  \"polygon\": [\n    { \"latitude\": 23.7801, \"longitude\": 90.4069 },\n    { \"latitude\": 23.7811, \"longitude\": 90.4069 },\n    { \"latitude\": 23.7811, \"longitude\": 90.4079 },\n    { \"latitude\": 23.7801, \"longitude\": 90.4079 }\n  ],\n  \"parkingCost\": \"FREE\",\n  \"parkingAreaTypes\": [\n    \"ELECTRIC_CHARGING\"\n  ],\n  \"totalSpots\": 2,\n  \"isActive\": true\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/admin/parking-areas",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "admin", "parking-areas"]
+        },
+        "description": "Creates an active admin-managed parking area with the new totalSpots field."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "const area = json.data || json;",
+              "if (area && area.id) {",
+              "  pm.collectionVariables.set('parkingAreaId', area.id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "Admin - Create Parking Area - 201",
+          "status": "Created",
+          "code": 201,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"id\": \"6a51fb103689cdc29e9c9607\",\n    \"name\": \"Green Park Mall\",\n    \"description\": \"Side Parking\",\n    \"centerLat\": 23.7806,\n    \"centerLng\": 90.4074,\n    \"polygon\": [\n        { \"latitude\": 23.7801, \"longitude\": 90.4069 },\n        { \"latitude\": 23.7811, \"longitude\": 90.4069 },\n        { \"latitude\": 23.7811, \"longitude\": 90.4079 },\n        { \"latitude\": 23.7801, \"longitude\": 90.4079 }\n    ],\n    \"parkingCost\": \"FREE\",\n    \"parkingFee\": null,\n    \"parkingAreaTypes\": [\n        \"ELECTRIC_CHARGING\"\n    ],\n    \"disabledFacilityLocation\": null,\n    \"totalSpots\": 2,\n    \"isActive\": true,\n    \"createdById\": \"6a52002a6980adf5514a602a\",\n    \"createdAt\": \"2026-08-03T07:40:45.814Z\",\n    \"updatedAt\": \"2026-08-03T07:40:45.814Z\",\n    \"rating\": null,\n    \"reviewCount\": 0\n}"
+        }
+      ]
+    },
+    {
+      "name": "1b. Admin - Create Parking Area (PAID, parkingFee required)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{adminToken}}", "type": "string" }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Downtown Garage\",\n  \"description\": \"Level 2\",\n  \"centerLat\": 23.781,\n  \"centerLng\": 90.408,\n  \"polygon\": [\n    { \"latitude\": 23.7805, \"longitude\": 90.4075 },\n    { \"latitude\": 23.7815, \"longitude\": 90.4075 },\n    { \"latitude\": 23.7815, \"longitude\": 90.4085 },\n    { \"latitude\": 23.7805, \"longitude\": 90.4085 }\n  ],\n  \"parkingCost\": \"PAID\",\n  \"parkingFee\": 20,\n  \"parkingAreaTypes\": [\n    \"ELECTRIC_CHARGING\"\n  ],\n  \"totalSpots\": 4,\n  \"isActive\": true\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/admin/parking-areas",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "admin", "parking-areas"]
+        },
+        "description": "PAID parking area. parkingFee (per-hour cost, float) is now required whenever parkingCost is PAID - omitting it returns a 400, see the second response example below."
+      },
+      "response": [
+        {
+          "name": "Admin - Create Parking Area (PAID) - 201",
+          "status": "Created",
+          "code": 201,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"id\": \"6a51fb303689cdc29e9c9609\",\n    \"name\": \"Downtown Garage\",\n    \"description\": \"Level 2\",\n    \"centerLat\": 23.781,\n    \"centerLng\": 90.408,\n    \"polygon\": [\n        { \"latitude\": 23.7805, \"longitude\": 90.4075 },\n        { \"latitude\": 23.7815, \"longitude\": 90.4075 },\n        { \"latitude\": 23.7815, \"longitude\": 90.4085 },\n        { \"latitude\": 23.7805, \"longitude\": 90.4085 }\n    ],\n    \"parkingCost\": \"PAID\",\n    \"parkingFee\": 20,\n    \"parkingAreaTypes\": [\n        \"ELECTRIC_CHARGING\"\n    ],\n    \"disabledFacilityLocation\": null,\n    \"totalSpots\": 4,\n    \"isActive\": true,\n    \"createdById\": \"6a52002a6980adf5514a602a\",\n    \"createdAt\": \"2026-08-03T07:42:00.000Z\",\n    \"updatedAt\": \"2026-08-03T07:42:00.000Z\",\n    \"rating\": null,\n    \"reviewCount\": 0\n}"
+        },
+        {
+          "name": "Admin - Create Parking Area (PAID, missing parkingFee) - 400",
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"success\": false,\n    \"message\": [\n        \"parkingFee must be a number conforming to the specified constraints\",\n        \"parkingFee must not be less than 0.01\"\n    ],\n    \"url\": \"/park-relay/admin/parking-areas\",\n    \"statusCode\": 400\n}"
+        }
+      ]
+    },
+    {
+      "name": "2. User - Submit Parking Area Point (totalSpots)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{releaserToken}}", "type": "string" }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Westfield Center\",\n  \"description\": \"Basement 2\",\n  \"centerLat\": 23.7806,\n  \"centerLng\": 90.4074,\n  \"parkingCost\": \"FREE\",\n  \"parkingAreaTypes\": [\n    \"ELECTRIC_CHARGING\",\n    \"DISABLED_FACILITY\"\n  ],\n  \"disabledFacilityLocation\": \"BACK\",\n  \"totalSpots\": 2\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/parking-areas",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "parking-areas"]
+        },
+        "description": "User drop-pin submission (matches the mobile Add Parking sheet: cost, electric charging toggle, disabled facility toggle + location). Always created inactive server-side regardless of body."
+      },
+      "response": [
+        {
+          "name": "User - Submit Parking Area Point - 201",
+          "status": "Created",
+          "code": 201,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"id\": \"6a51fb203689cdc29e9c9608\",\n    \"name\": \"Westfield Center\",\n    \"description\": \"Basement 2\",\n    \"centerLat\": 23.7806,\n    \"centerLng\": 90.4074,\n    \"polygon\": null,\n    \"parkingCost\": \"FREE\",\n    \"parkingFee\": null,\n    \"parkingAreaTypes\": [\n        \"ELECTRIC_CHARGING\",\n        \"DISABLED_FACILITY\"\n    ],\n    \"disabledFacilityLocation\": \"BACK\",\n    \"totalSpots\": 2,\n    \"isActive\": false,\n    \"createdById\": \"6a51e5183689cdc29e9c9564\",\n    \"createdAt\": \"2026-08-03T07:41:10.201Z\",\n    \"updatedAt\": \"2026-08-03T07:41:10.201Z\",\n    \"rating\": null,\n    \"reviewCount\": 0\n}"
+        }
+      ]
+    },
+    {
+      "name": "2b. User - Submit Parking Area Point (PAID, parkingFee required)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{releaserToken}}", "type": "string" }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Lakeside Parking\",\n  \"description\": \"Open Lot\",\n  \"centerLat\": 23.7795,\n  \"centerLng\": 90.406,\n  \"parkingCost\": \"PAID\",\n  \"parkingFee\": 15,\n  \"parkingAreaTypes\": [\n    \"ELECTRIC_CHARGING\"\n  ],\n  \"totalSpots\": 5\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/parking-areas",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "parking-areas"]
+        },
+        "description": "Users can also submit a PAID drop-pin (not just admins). parkingFee (per-hour cost, float) is required whenever parkingCost is PAID - omitting it returns a 400, see the second response example below. Still created inactive server-side regardless of body."
+      },
+      "response": [
+        {
+          "name": "User - Submit Parking Area Point (PAID) - 201",
+          "status": "Created",
+          "code": 201,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"id\": \"6a51fb403689cdc29e9c9610\",\n    \"name\": \"Lakeside Parking\",\n    \"description\": \"Open Lot\",\n    \"centerLat\": 23.7795,\n    \"centerLng\": 90.406,\n    \"polygon\": null,\n    \"parkingCost\": \"PAID\",\n    \"parkingFee\": 15,\n    \"parkingAreaTypes\": [\n        \"ELECTRIC_CHARGING\"\n    ],\n    \"disabledFacilityLocation\": null,\n    \"totalSpots\": 5,\n    \"isActive\": false,\n    \"createdById\": \"6a51e5183689cdc29e9c9564\",\n    \"createdAt\": \"2026-08-03T07:43:00.000Z\",\n    \"updatedAt\": \"2026-08-03T07:43:00.000Z\",\n    \"rating\": null,\n    \"reviewCount\": 0\n}"
+        },
+        {
+          "name": "User - Submit Parking Area Point (PAID, missing parkingFee) - 400",
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"success\": false,\n    \"message\": [\n        \"parkingFee must be a number conforming to the specified constraints\",\n        \"parkingFee must not be less than 0.01\"\n    ],\n    \"url\": \"/park-relay/parking-areas\",\n    \"statusCode\": 400\n}"
+        }
+      ]
+    },
+    {
+      "name": "3. Admin - Update Parking Area (polygon + activate + totalSpots)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{adminToken}}", "type": "string" }
+          ]
+        },
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"polygon\": [\n    { \"latitude\": 23.7801, \"longitude\": 90.4069 },\n    { \"latitude\": 23.7811, \"longitude\": 90.4069 },\n    { \"latitude\": 23.7811, \"longitude\": 90.4079 },\n    { \"latitude\": 23.7801, \"longitude\": 90.4079 }\n  ],\n  \"isActive\": true,\n  \"totalSpots\": 3\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/admin/parking-areas/{{parkingAreaId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "admin", "parking-areas", "{{parkingAreaId}}"]
+        },
+        "description": "Admin draws the boundary polygon and activates a pending user submission, optionally overriding totalSpots."
+      },
+      "response": [
+        {
+          "name": "Admin - Update Parking Area - 200",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"id\": \"6a51fb103689cdc29e9c9607\",\n    \"name\": \"Green Park Mall\",\n    \"description\": \"Side Parking\",\n    \"centerLat\": 23.7806,\n    \"centerLng\": 90.4074,\n    \"polygon\": [\n        { \"latitude\": 23.7801, \"longitude\": 90.4069 },\n        { \"latitude\": 23.7811, \"longitude\": 90.4069 },\n        { \"latitude\": 23.7811, \"longitude\": 90.4079 },\n        { \"latitude\": 23.7801, \"longitude\": 90.4079 }\n    ],\n    \"parkingCost\": \"FREE\",\n    \"parkingFee\": null,\n    \"parkingAreaTypes\": [\n        \"ELECTRIC_CHARGING\"\n    ],\n    \"disabledFacilityLocation\": null,\n    \"totalSpots\": 3,\n    \"isActive\": true,\n    \"createdById\": \"6a52002a6980adf5514a602a\",\n    \"createdAt\": \"2026-08-03T07:40:45.814Z\",\n    \"updatedAt\": \"2026-08-03T07:45:02.556Z\",\n    \"rating\": null,\n    \"reviewCount\": 0\n}"
+        }
+      ]
+    },
+    {
+      "name": "4. Search Parking Areas By Cost & Type",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{token}}", "type": "string" }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/parking-areas/search?latitude={{latitude}}&longitude={{longitude}}&radiusMeters={{radiusMeters}}&parkingCost=FREE&parkingAreaTypes=ELECTRIC_CHARGING",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "parking-areas", "search"],
+          "query": [
+            { "key": "latitude", "value": "{{latitude}}" },
+            { "key": "longitude", "value": "{{longitude}}" },
+            { "key": "radiusMeters", "value": "{{radiusMeters}}" },
+            { "key": "parkingCost", "value": "FREE" },
+            { "key": "parkingAreaTypes", "value": "ELECTRIC_CHARGING" }
+          ]
+        },
+        "description": "Existing parkingCost/parkingAreaTypes filters (unchanged endpoint, included for the end-to-end flow)."
+      },
+      "response": [
+        {
+          "name": "Search Parking Areas - 200",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"areas\": [\n        {\n            \"id\": \"6a51fb103689cdc29e9c9607\",\n            \"name\": \"Green Park Mall\",\n            \"description\": \"Side Parking\",\n            \"centerLat\": 23.7806,\n            \"centerLng\": 90.4074,\n            \"polygon\": [\n                { \"latitude\": 23.7801, \"longitude\": 90.4069 },\n                { \"latitude\": 23.7811, \"longitude\": 90.4069 },\n                { \"latitude\": 23.7811, \"longitude\": 90.4079 },\n                { \"latitude\": 23.7801, \"longitude\": 90.4079 }\n            ],\n            \"parkingCost\": \"FREE\",\n            \"parkingFee\": null,\n            \"parkingAreaTypes\": [\n                \"ELECTRIC_CHARGING\"\n            ],\n            \"disabledFacilityLocation\": null,\n            \"totalSpots\": 3,\n            \"isActive\": true,\n            \"createdById\": \"6a52002a6980adf5514a602a\",\n            \"createdAt\": \"2026-08-03T07:40:45.814Z\",\n            \"updatedAt\": \"2026-08-03T07:45:02.556Z\",\n            \"rating\": 4.5,\n            \"reviewCount\": 2,\n            \"distanceMeters\": 0,\n            \"googleMapsLink\": \"https://www.google.com/maps/dir/?api=1&destination=23.7806,90.4074&travelmode=driving\"\n        }\n    ],\n    \"total\": 1,\n    \"page\": 1,\n    \"limit\": 20\n}"
+        }
+      ]
+    },
+    {
+      "name": "5. Admin - List Pending Parking Areas (isActive=false)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{adminToken}}", "type": "string" }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/admin/parking-areas?page=1&limit=20&isActive=false",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "admin", "parking-areas"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "20" },
+            { "key": "isActive", "value": "false" }
+          ]
+        },
+        "description": "New isActive query filter for reviewing submissions awaiting boundary + activation."
+      },
+      "response": [
+        {
+          "name": "Admin - List Pending Parking Areas - 200",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"areas\": [\n        {\n            \"id\": \"6a51fb203689cdc29e9c9608\",\n            \"name\": \"Westfield Center\",\n            \"description\": \"Basement 2\",\n            \"centerLat\": 23.7806,\n            \"centerLng\": 90.4074,\n            \"polygon\": null,\n            \"parkingCost\": \"FREE\",\n            \"parkingFee\": null,\n            \"parkingAreaTypes\": [\n                \"ELECTRIC_CHARGING\",\n                \"DISABLED_FACILITY\"\n            ],\n            \"disabledFacilityLocation\": \"BACK\",\n            \"totalSpots\": 2,\n            \"isActive\": false,\n            \"createdById\": \"6a51e5183689cdc29e9c9564\",\n            \"createdAt\": \"2026-08-03T07:41:10.201Z\",\n            \"updatedAt\": \"2026-08-03T07:41:10.201Z\",\n            \"rating\": null,\n            \"reviewCount\": 0\n        }\n    ],\n    \"total\": 1,\n    \"page\": 1,\n    \"limit\": 20\n}"
+        }
+      ]
+    },
+    {
+      "name": "6. Releaser - Create Handoff Linked To Area",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{releaserToken}}", "type": "string" }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"latitude\": {{latitude}},\n  \"longitude\": {{longitude}},\n  \"spotId\": \"{{parkingAreaId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/handoffs",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "handoffs"]
+        },
+        "description": "Releaser exits parking, explicitly linking the handoff to the ParkingArea via spotId."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "const handoff = json.data || json;",
+              "if (handoff && handoff.id) {",
+              "  pm.collectionVariables.set('handoffId', handoff.id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "Releaser - Create Handoff - 201",
+          "status": "Created",
+          "code": 201,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"id\": \"6a51e5aa3689cdc29e9c9566\",\n    \"releaserId\": \"6a51e5183689cdc29e9c9564\",\n    \"seekerId\": null,\n    \"spotId\": \"6a51fb103689cdc29e9c9607\",\n    \"latitude\": 23.7806,\n    \"longitude\": 90.4074,\n    \"approxLatitude\": 23.781,\n    \"approxLongitude\": 90.407,\n    \"status\": \"AVAILABLE\",\n    \"expiresAt\": \"2026-08-03T07:50:45.814Z\",\n    \"acceptedAt\": null,\n    \"cancelledAt\": null,\n    \"foundAt\": null,\n    \"occupiedAt\": null,\n    \"createdAt\": \"2026-08-03T07:45:45.814Z\",\n    \"updatedAt\": \"2026-08-03T07:45:45.814Z\",\n    \"windowSeconds\": 300,\n    \"radiusMeters\": 300,\n    \"notifiedSeekers\": 1,\n    \"approximateLocation\": {\n        \"latitude\": 23.781,\n        \"longitude\": 90.407\n    }\n}"
+        }
+      ]
+    },
+    {
+      "name": "7. Seeker - Get Nearby Handoffs (enriched with parkingArea)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{token}}", "type": "string" }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/handoffs/nearby?latitude={{latitude}}&longitude={{longitude}}&radiusMeters={{radiusMeters}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "handoffs", "nearby"],
+          "query": [
+            { "key": "latitude", "value": "{{latitude}}" },
+            { "key": "longitude", "value": "{{longitude}}" },
+            { "key": "radiusMeters", "value": "{{radiusMeters}}" }
+          ]
+        },
+        "description": "Each result now includes a nested parkingArea object (name, rating, totalSpots, cost) when spotId is set."
+      },
+      "response": [
+        {
+          "name": "Seeker - Get Nearby Handoffs - 200",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "[\n    {\n        \"id\": \"6a51e5aa3689cdc29e9c9566\",\n        \"spotId\": \"6a51fb103689cdc29e9c9607\",\n        \"status\": \"AVAILABLE\",\n        \"expiresAt\": \"2026-08-03T07:50:45.814Z\",\n        \"createdAt\": \"2026-08-03T07:45:45.814Z\",\n        \"updatedAt\": \"2026-08-03T07:45:45.814Z\",\n        \"latitude\": 23.781,\n        \"longitude\": 90.407,\n        \"hasExactLocation\": false,\n        \"distanceMeters\": 42,\n        \"parkingArea\": {\n            \"id\": \"6a51fb103689cdc29e9c9607\",\n            \"name\": \"Green Park Mall\",\n            \"description\": \"Side Parking\",\n            \"rating\": 4.5,\n            \"reviewCount\": 2,\n            \"totalSpots\": 3,\n            \"parkingCost\": \"FREE\",\n            \"parkingFee\": null,\n            \"parkingAreaTypes\": [\n                \"ELECTRIC_CHARGING\"\n            ],\n            \"disabledFacilityLocation\": null\n        }\n    }\n]"
+        }
+      ]
+    },
+    {
+      "name": "8. Seeker - Get Handoff By Id (enriched)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{token}}", "type": "string" }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/handoffs/{{handoffId}}?latitude={{latitude}}&longitude={{longitude}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "handoffs", "{{handoffId}}"],
+          "query": [
+            { "key": "latitude", "value": "{{latitude}}" },
+            { "key": "longitude", "value": "{{longitude}}" }
+          ]
+        },
+        "description": "Detail card for the selected pin, now enriched with parkingArea."
+      },
+      "response": [
+        {
+          "name": "Seeker - Get Handoff By Id - 200",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"id\": \"6a51e5aa3689cdc29e9c9566\",\n    \"releaserId\": \"6a51e5183689cdc29e9c9564\",\n    \"seekerId\": null,\n    \"spotId\": \"6a51fb103689cdc29e9c9607\",\n    \"status\": \"AVAILABLE\",\n    \"expiresAt\": \"2026-08-03T07:50:45.814Z\",\n    \"acceptedAt\": null,\n    \"cancelledAt\": null,\n    \"foundAt\": null,\n    \"occupiedAt\": null,\n    \"createdAt\": \"2026-08-03T07:45:45.814Z\",\n    \"updatedAt\": \"2026-08-03T07:45:45.814Z\",\n    \"latitude\": 23.781,\n    \"longitude\": 90.407,\n    \"hasExactLocation\": false,\n    \"distanceMeters\": 42,\n    \"googleMapsLink\": null,\n    \"parkingArea\": {\n        \"id\": \"6a51fb103689cdc29e9c9607\",\n        \"name\": \"Green Park Mall\",\n        \"description\": \"Side Parking\",\n        \"rating\": 4.5,\n        \"reviewCount\": 2,\n        \"totalSpots\": 3,\n        \"parkingCost\": \"FREE\",\n        \"parkingFee\": null,\n        \"parkingAreaTypes\": [\n            \"ELECTRIC_CHARGING\"\n        ],\n        \"disabledFacilityLocation\": null\n    }\n}"
+        }
+      ]
+    },
+    {
+      "name": "9. Seeker - Accept Handoff And Park (combined)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{token}}", "type": "string" }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"note\": \"B2 • A-27\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/handoffs/{{handoffId}}/accept-and-park",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "handoffs", "{{handoffId}}", "accept-and-park"]
+        },
+        "description": "New endpoint: claims the handoff, marks it occupied (credits the releaser's reputation), saves the parking location, and marks the seeker parked - all in one call. Maps to the 'Save Park' tap in the mobile designs."
+      },
+      "response": [
+        {
+          "name": "Seeker - Accept Handoff And Park - 200",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"handoff\": {\n        \"id\": \"6a51e5aa3689cdc29e9c9566\",\n        \"releaserId\": \"6a51e5183689cdc29e9c9564\",\n        \"seekerId\": \"6a51e8539fa9bc3da84d4efd\",\n        \"spotId\": \"6a51fb103689cdc29e9c9607\",\n        \"latitude\": 23.7806,\n        \"longitude\": 90.4074,\n        \"approxLatitude\": 23.781,\n        \"approxLongitude\": 90.407,\n        \"status\": \"OCCUPIED\",\n        \"expiresAt\": \"2026-08-03T07:50:45.814Z\",\n        \"acceptedAt\": \"2026-08-03T07:46:12.331Z\",\n        \"cancelledAt\": null,\n        \"foundAt\": null,\n        \"occupiedAt\": \"2026-08-03T07:46:15.870Z\",\n        \"createdAt\": \"2026-08-03T07:45:45.814Z\",\n        \"updatedAt\": \"2026-08-03T07:46:15.870Z\",\n        \"parkingArea\": {\n            \"id\": \"6a51fb103689cdc29e9c9607\",\n            \"name\": \"Green Park Mall\",\n            \"description\": \"Side Parking\",\n            \"rating\": 4.5,\n            \"reviewCount\": 2,\n            \"totalSpots\": 3,\n            \"parkingCost\": \"FREE\",\n            \"parkingFee\": null,\n            \"parkingAreaTypes\": [\n                \"ELECTRIC_CHARGING\"\n            ],\n            \"disabledFacilityLocation\": null\n        }\n    },\n    \"savedParking\": {\n        \"id\": \"6a5200306980adf5514a6030\",\n        \"userId\": \"6a51e8539fa9bc3da84d4efd\",\n        \"spotId\": \"6a51fb103689cdc29e9c9607\",\n        \"latitude\": 23.7806,\n        \"longitude\": 90.4074,\n        \"accuracy\": null,\n        \"confidence\": null,\n        \"source\": \"AUTO\",\n        \"note\": \"B2 • A-27\",\n        \"photoUrl\": null,\n        \"isActive\": true,\n        \"parkingType\": \"FREE\",\n        \"paidExpiresAt\": null,\n        \"createdAt\": \"2026-08-03T07:46:15.902Z\",\n        \"updatedAt\": \"2026-08-03T07:46:15.902Z\",\n        \"googleMapsWalkingLink\": \"https://www.google.com/maps/dir/?api=1&destination=23.7806,90.4074&travelmode=walking\",\n        \"parkingSession\": null,\n        \"paidParkingPrompt\": null,\n        \"parkingArea\": {\n            \"id\": \"6a51fb103689cdc29e9c9607\",\n            \"name\": \"Green Park Mall\",\n            \"description\": \"Side Parking\",\n            \"rating\": 4.5,\n            \"reviewCount\": 2,\n            \"totalSpots\": 3,\n            \"parkingCost\": \"FREE\",\n            \"parkingFee\": null,\n            \"parkingAreaTypes\": [\n                \"ELECTRIC_CHARGING\"\n            ],\n            \"disabledFacilityLocation\": null\n        }\n    },\n    \"parkingMode\": {\n        \"id\": \"6a4f2b8b9a35ef61143f67fa\",\n        \"userId\": \"6a51e8539fa9bc3da84d4efd\",\n        \"latitude\": 23.7806,\n        \"longitude\": 90.4074,\n        \"accuracy\": null,\n        \"status\": \"PARKED\",\n        \"createdAt\": \"2026-08-03T07:30:00.000Z\",\n        \"updatedAt\": \"2026-08-03T07:46:15.930Z\"\n    },\n    \"paidParkingPrompt\": null\n}"
+        }
+      ]
+    },
+    {
+      "name": "10. Seeker - Get My Saved Parking (enriched)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{token}}", "type": "string" }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/saved-parking/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "saved-parking", "me"]
+        },
+        "description": "'You're Parked' status screen data, now enriched with parkingArea (name/rating/totalSpots/badge)."
+      },
+      "response": [
+        {
+          "name": "Seeker - Get My Saved Parking - 200",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"id\": \"6a5200306980adf5514a6030\",\n    \"userId\": \"6a51e8539fa9bc3da84d4efd\",\n    \"spotId\": \"6a51fb103689cdc29e9c9607\",\n    \"latitude\": 23.7806,\n    \"longitude\": 90.4074,\n    \"accuracy\": null,\n    \"confidence\": null,\n    \"source\": \"AUTO\",\n    \"note\": \"B2 • A-27\",\n    \"photoUrl\": null,\n    \"isActive\": true,\n    \"parkingType\": \"FREE\",\n    \"paidExpiresAt\": null,\n    \"createdAt\": \"2026-08-03T07:46:15.902Z\",\n    \"updatedAt\": \"2026-08-03T07:46:15.902Z\",\n    \"googleMapsWalkingLink\": \"https://www.google.com/maps/dir/?api=1&destination=23.7806,90.4074&travelmode=walking\",\n    \"parkingSession\": null,\n    \"parkingArea\": {\n        \"id\": \"6a51fb103689cdc29e9c9607\",\n        \"name\": \"Green Park Mall\",\n        \"description\": \"Side Parking\",\n        \"rating\": 4.5,\n        \"reviewCount\": 2,\n        \"totalSpots\": 3,\n        \"parkingCost\": \"FREE\",\n        \"parkingFee\": null,\n        \"parkingAreaTypes\": [\n            \"ELECTRIC_CHARGING\"\n        ],\n        \"disabledFacilityLocation\": null\n    }\n}"
+        }
+      ]
+    },
+    {
+      "name": "11. Seeker - Get Saved Parking History (enriched)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{token}}", "type": "string" }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/saved-parking/history?page=1&limit=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "saved-parking", "history"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "20" }
+          ]
+        },
+        "description": "'Saved Parkings' list, now enriched with parkingArea per entry. paidExpiresAt (already existing) drives the client-side countdown for paid entries."
+      },
+      "response": [
+        {
+          "name": "Seeker - Get Saved Parking History - 200",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"locations\": [\n        {\n            \"id\": \"6a5200306980adf5514a6030\",\n            \"userId\": \"6a51e8539fa9bc3da84d4efd\",\n            \"spotId\": \"6a51fb103689cdc29e9c9607\",\n            \"latitude\": 23.7806,\n            \"longitude\": 90.4074,\n            \"accuracy\": null,\n            \"confidence\": null,\n            \"source\": \"AUTO\",\n            \"note\": \"B2 • A-27\",\n            \"photoUrl\": null,\n            \"isActive\": true,\n            \"parkingType\": \"FREE\",\n            \"paidExpiresAt\": null,\n            \"createdAt\": \"2026-08-03T07:46:15.902Z\",\n            \"updatedAt\": \"2026-08-03T07:46:15.902Z\",\n            \"googleMapsWalkingLink\": \"https://www.google.com/maps/dir/?api=1&destination=23.7806,90.4074&travelmode=walking\",\n            \"parkingArea\": {\n                \"id\": \"6a51fb103689cdc29e9c9607\",\n                \"name\": \"Green Park Mall\",\n                \"description\": \"Side Parking\",\n                \"rating\": 4.5,\n                \"reviewCount\": 2,\n                \"totalSpots\": 3,\n                \"parkingCost\": \"FREE\",\n                \"parkingFee\": null,\n                \"parkingAreaTypes\": [\n                    \"ELECTRIC_CHARGING\"\n                ],\n                \"disabledFacilityLocation\": null\n            }\n        },\n        {\n            \"id\": \"6a5200256980adf5514a6025\",\n            \"userId\": \"6a51e8539fa9bc3da84d4efd\",\n            \"spotId\": \"6a51fb203689cdc29e9c9608\",\n            \"latitude\": 23.7805,\n            \"longitude\": 90.4072,\n            \"accuracy\": 8,\n            \"confidence\": 0.9,\n            \"source\": \"MANUAL\",\n            \"note\": null,\n            \"photoUrl\": null,\n            \"isActive\": false,\n            \"parkingType\": \"PAID\",\n            \"paidExpiresAt\": \"2026-08-02T18:30:00.000Z\",\n            \"createdAt\": \"2026-08-02T18:00:00.000Z\",\n            \"updatedAt\": \"2026-08-02T18:00:00.000Z\",\n            \"googleMapsWalkingLink\": \"https://www.google.com/maps/dir/?api=1&destination=23.7805,90.4072&travelmode=walking\",\n            \"parkingArea\": {\n                \"id\": \"6a51fb203689cdc29e9c9608\",\n                \"name\": \"Westfield Center\",\n                \"description\": \"Basement 2\",\n                \"rating\": 4.5,\n                \"reviewCount\": 2,\n                \"totalSpots\": 2,\n                \"parkingCost\": \"FREE\",\n                \"parkingFee\": null,\n                \"parkingAreaTypes\": [\n                    \"ELECTRIC_CHARGING\",\n                    \"DISABLED_FACILITY\"\n                ],\n                \"disabledFacilityLocation\": \"BACK\"\n            }\n        }\n    ],\n    \"total\": 2,\n    \"page\": 1,\n    \"limit\": 20,\n    \"totalPages\": 1\n}"
+        }
+      ]
+    },
+    {
+      "name": "12. Seeker - Exit Parking (spotId auto-inherited)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{token}}", "type": "string" }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"latitude\": {{latitude}},\n  \"longitude\": {{longitude}}\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/handoffs",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "handoffs"]
+        },
+        "description": "No spotId supplied - the service now falls back to the seeker's active SavedParkingLocation.spotId, so the resulting handoff (returned to the next searcher) is still linked to Green Park Mall."
+      },
+      "response": [
+        {
+          "name": "Seeker - Exit Parking - 201",
+          "status": "Created",
+          "code": 201,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"id\": \"6a5200406980adf5514a6040\",\n    \"releaserId\": \"6a51e8539fa9bc3da84d4efd\",\n    \"seekerId\": null,\n    \"spotId\": \"6a51fb103689cdc29e9c9607\",\n    \"latitude\": 23.7806,\n    \"longitude\": 90.4074,\n    \"approxLatitude\": 23.781,\n    \"approxLongitude\": 90.407,\n    \"status\": \"AVAILABLE\",\n    \"expiresAt\": \"2026-08-03T07:55:00.000Z\",\n    \"acceptedAt\": null,\n    \"cancelledAt\": null,\n    \"foundAt\": null,\n    \"occupiedAt\": null,\n    \"createdAt\": \"2026-08-03T07:50:00.000Z\",\n    \"updatedAt\": \"2026-08-03T07:50:00.000Z\",\n    \"windowSeconds\": 300,\n    \"radiusMeters\": 300,\n    \"notifiedSeekers\": 0,\n    \"approximateLocation\": {\n        \"latitude\": 23.781,\n        \"longitude\": 90.407\n    }\n}"
+        }
+      ]
+    },
+    {
+      "name": "13. Seeker - Rate The Parking Area",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{token}}", "type": "string" }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"rating\": 5,\n  \"review\": \"Great spot, exactly as shown\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/park-relay/parking-areas/{{parkingAreaId}}/ratings",
+          "host": ["{{baseUrl}}"],
+          "path": ["park-relay", "parking-areas", "{{parkingAreaId}}", "ratings"]
+        },
+        "description": "Rating pop-up submission after exiting - unchanged endpoint, included here for the end-to-end flow."
+      },
+      "response": [
+        {
+          "name": "Seeker - Rate The Parking Area - 201",
+          "status": "Created",
+          "code": 201,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "cookie": [],
+          "body": "{\n    \"id\": \"6a5200016980adf5514a6001\",\n    \"parkingAreaId\": \"6a51fb103689cdc29e9c9607\",\n    \"userId\": \"6a51e8539fa9bc3da84d4efd\",\n    \"rating\": 5,\n    \"review\": \"Great spot, exactly as shown\",\n    \"createdAt\": \"2026-08-03T07:51:00.000Z\",\n    \"updatedAt\": \"2026-08-03T07:51:00.000Z\",\n    \"user\": {\n        \"id\": \"6a51e8539fa9bc3da84d4efd\",\n        \"nick_name\": \"park_seeker\",\n        \"avatar\": null\n    }\n}"
+        }
+      ]
+    }
+  ]
+}

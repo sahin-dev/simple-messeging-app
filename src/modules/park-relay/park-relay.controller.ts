@@ -15,6 +15,7 @@ import { ResponseMessage } from 'src/common/decorators/apiResponseMessage.decora
 import { UserRole } from 'generated/prisma/enums';
 import { ParkRelayService } from './park-relay.service';
 import {
+  AcceptHandoffAndParkDto,
   AnswerPaidParkingPromptDto,
   CreateParkingAreaDto,
   CreateParkingAreaRatingDto,
@@ -105,6 +106,17 @@ export class ParkRelayController {
     @Param('id') handoffId: string,
   ) {
     return this.parkRelayService.markHandoffOccupied(userId, handoffId);
+  }
+
+  @Post('handoffs/:id/accept-and-park')
+  @HttpCode(200)
+  @ResponseMessage('Parking handoff accepted and parking location saved successfully')
+  async acceptHandoffAndPark(
+    @GetUser('id') userId: string,
+    @Param('id') handoffId: string,
+    @Body() dto: AcceptHandoffAndParkDto,
+  ) {
+    return this.parkRelayService.acceptHandoffAndPark(userId, handoffId, dto);
   }
 
   @Post('handoffs/:id/found')
@@ -318,8 +330,10 @@ export class ParkRelayController {
   async getParkingAreas(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
+    @Query('isActive') isActive?: string,
   ) {
-    return this.parkRelayService.getParkingAreas(page, limit);
+    const parsedIsActive = isActive === undefined ? undefined : isActive === 'true';
+    return this.parkRelayService.getParkingAreas(page, limit, parsedIsActive);
   }
 
   @Patch('admin/parking-areas/:id')
