@@ -1193,27 +1193,42 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('You have already rated this parking area');
     }
 
-    const rating = await this.prismaService.parkingAreaRating.create({
-      data: {
-        parkingAreaId: areaId,
-        userId,
-        rating: dto.rating,
-        review: dto.review,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            nick_name: true,
-            avatar: true,
-          },
-        },
-      },
-    });
+    const rating = await this.createParkingAreaRatingRecord(userId, areaId, dto);
 
     await this.refreshParkingAreaRatingSummary(areaId);
 
     return rating;
+  }
+
+  private async createParkingAreaRatingRecord(
+    userId: string,
+    areaId: string,
+    dto: CreateParkingAreaRatingDto,
+  ) {
+    try {
+      return await this.prismaService.parkingAreaRating.create({
+        data: {
+          parkingAreaId: areaId,
+          userId,
+          rating: dto.rating,
+          review: dto.review,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              nick_name: true,
+              avatar: true,
+            },
+          },
+        },
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        throw new BadRequestException('You have already rated this parking area');
+      }
+      throw error;
+    }
   }
 
   async updateMyParkingAreaRating(
