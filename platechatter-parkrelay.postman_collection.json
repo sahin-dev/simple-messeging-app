@@ -1,0 +1,728 @@
+{
+  "info": {
+    "name": "PLATEChatter - ParkRelay Module",
+    "description": "Full endpoint coverage of the ParkRelay module: parking mode, handoffs (release/accept a spot), saved parking, paid parking prompts, parking sessions, parking areas, ratings, and admin parking-area management.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "ParkRelay - Parking Mode",
+      "item": [
+        {
+          "name": "Start Searching",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-mode/searching",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 23.7806,\n  \"longitude\": 90.4074,\n  \"accuracy\": 5\n}"
+            }
+          }
+        },
+        {
+          "name": "Mark Parked",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-mode/parked",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 23.7806,\n  \"longitude\": 90.4074,\n  \"accuracy\": 5\n}"
+            }
+          }
+        },
+        {
+          "name": "Set Idle",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-mode/idle"
+          }
+        },
+        {
+          "name": "Get My Parking Mode",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-mode/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "ParkRelay - Handoffs",
+      "item": [
+        {
+          "name": "Create Handoff (Exit Parking)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/handoffs",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 23.7806,\n  \"longitude\": 90.4074,\n  \"spotId\": \"{{parkingAreaId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Accept Handoff",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/handoffs/{{handoffId}}/accept"
+          }
+        },
+        {
+          "name": "Accept Handoff And Park",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/handoffs/{{handoffId}}/accept-and-park",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Parked near entrance\",\n  \"photoUrl\": \"\",\n  \"accuracy\": 5,\n  \"confidence\": 0.9\n}"
+            }
+          }
+        },
+        {
+          "name": "Mark Handoff Occupied",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/handoffs/{{handoffId}}/occupied"
+          }
+        },
+        {
+          "name": "Mark Handoff Found",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/handoffs/{{handoffId}}/found"
+          }
+        },
+        {
+          "name": "Cancel Handoff",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/handoffs/{{handoffId}}/cancel"
+          }
+        },
+        {
+          "name": "Get Nearby Handoffs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/handoffs/nearby?latitude={{latitude}}&longitude={{longitude}}&radiusMeters={{radiusMeters}}"
+          }
+        },
+        {
+          "name": "Get Handoff By Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/handoffs/{{handoffId}}?latitude={{latitude}}&longitude={{longitude}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "ParkRelay - Saved Parking",
+      "item": [
+        {
+          "name": "Save Parking Location",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/saved-parking",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 23.7806,\n  \"longitude\": 90.4074,\n  \"accuracy\": 5,\n  \"confidence\": 0.9,\n  \"source\": \"MANUAL\",\n  \"spotId\": \"{{parkingAreaId}}\",\n  \"parkingType\": \"FREE\",\n  \"note\": \"Near the main gate\",\n  \"photoUrl\": \"\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Process Parked Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parked-event",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 23.7806,\n  \"longitude\": 90.4074,\n  \"accuracy\": 5,\n  \"confidence\": 0.9,\n  \"source\": \"AUTO\",\n  \"spotId\": \"{{parkingAreaId}}\",\n  \"parkingType\": \"PAID\",\n  \"durationMin\": 60,\n  \"createPaidParkingPrompt\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Get My Saved Parking",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/saved-parking/me"
+          }
+        },
+        {
+          "name": "Get Saved Parking History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/saved-parking/history?page=1&limit=20"
+          }
+        },
+        {
+          "name": "Delete Saved Parking Location",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/saved-parking/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "ParkRelay - Paid Parking Prompt",
+      "item": [
+        {
+          "name": "Get Pending Paid Parking Prompt",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/paid-parking-prompt/me"
+          }
+        },
+        {
+          "name": "Answer Paid Parking Prompt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/paid-parking-prompt/{{promptId}}/answer",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"parkingType\": \"PAID\",\n  \"durationMin\": 60\n}"
+            }
+          }
+        },
+        {
+          "name": "Dismiss Paid Parking Prompt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/paid-parking-prompt/{{promptId}}/dismiss"
+          }
+        }
+      ]
+    },
+    {
+      "name": "ParkRelay - Parking Sessions",
+      "item": [
+        {
+          "name": "Create Parking Session (Free)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-sessions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 23.7806,\n  \"longitude\": 90.4074,\n  \"spotId\": \"{{parkingAreaId}}\",\n  \"costType\": \"FREE\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Parking Session (Paid)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-sessions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 23.7806,\n  \"longitude\": 90.4074,\n  \"spotId\": \"{{parkingAreaId}}\",\n  \"costType\": \"PAID\",\n  \"durationMin\": 60\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Active Parking Session",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-sessions/me/active"
+          }
+        },
+        {
+          "name": "Leave Parking Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-sessions/{{parkingSessionId}}/leave"
+          }
+        }
+      ]
+    },
+    {
+      "name": "ParkRelay - Parking Areas",
+      "item": [
+        {
+          "name": "Get Nearby Parking Areas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-areas/nearby?latitude={{latitude}}&longitude={{longitude}}&radiusMeters={{radiusMeters}}"
+          }
+        },
+        {
+          "name": "Search Parking Areas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-areas/search?query=&parkingCost=FREE&parkingAreaTypes=ELECTRIC_CHARGING&latitude={{latitude}}&longitude={{longitude}}&radiusMeters={{radiusMeters}}&page=1&limit=20"
+          }
+        },
+        {
+          "name": "Submit Parking Area Point",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-areas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Community Street Spot\",\n  \"description\": \"User-submitted candidate parking area\",\n  \"centerLat\": 23.7806,\n  \"centerLng\": 90.4074,\n  \"parkingCost\": \"FREE\",\n  \"parkingAreaTypes\": [\n    \"ELECTRIC_CHARGING\"\n  ],\n  \"totalSpots\": 10\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ParkRelay - Parking Area Ratings",
+      "item": [
+        {
+          "name": "Create Parking Area Rating",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-areas/{{parkingAreaId}}/ratings",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"review\": \"Plenty of space and well lit.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update My Parking Area Rating",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-areas/{{parkingAreaId}}/ratings/me",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 4,\n  \"review\": \"Updated: a bit crowded on weekends.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get My Parking Area Rating",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-areas/{{parkingAreaId}}/ratings/me"
+          }
+        },
+        {
+          "name": "Get Parking Area Ratings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-areas/{{parkingAreaId}}/ratings?page=1&limit=10"
+          }
+        },
+        {
+          "name": "Get Parking Area Rating Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-areas/{{parkingAreaId}}/rating-summary"
+          }
+        }
+      ]
+    },
+    {
+      "name": "ParkRelay - Admin - Parking Areas",
+      "item": [
+        {
+          "name": "Admin - Create Parking Area",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/admin/parking-areas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"City Hall Parking Area\",\n  \"description\": \"Official municipal parking area\",\n  \"centerLat\": 23.7806,\n  \"centerLng\": 90.4074,\n  \"polygon\": [\n    {\n      \"latitude\": 23.7803,\n      \"longitude\": 90.407\n    },\n    {\n      \"latitude\": 23.7809,\n      \"longitude\": 90.407\n    },\n    {\n      \"latitude\": 23.7809,\n      \"longitude\": 90.4078\n    },\n    {\n      \"latitude\": 23.7803,\n      \"longitude\": 90.4078\n    }\n  ],\n  \"parkingCost\": \"FREE\",\n  \"parkingAreaTypes\": [\n    \"ELECTRIC_CHARGING\",\n    \"DISABLED_FACILITY\"\n  ],\n  \"disabledFacilityLocation\": \"BACK\",\n  \"totalSpots\": 40,\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin - List Parking Areas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/admin/parking-areas?page=1&limit=20&isActive=true"
+          }
+        },
+        {
+          "name": "Admin - Update Parking Area",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/admin/parking-areas/{{parkingAreaId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"City Hall Parking Area (Updated)\",\n  \"totalSpots\": 50,\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin - Delete Parking Area",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/admin/parking-areas/{{parkingAreaId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "ParkRelay - Admin - Other",
+      "item": [
+        {
+          "name": "Admin - Get All Saved Parking Locations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/admin/saved-parking?page=1&limit=20"
+          }
+        },
+        {
+          "name": "Admin - Dispatch Parking Expiry Warnings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/park-relay/parking-sessions/dispatch-expiry-warnings"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "USER_JWT_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "ADMIN_JWT_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "handoffId",
+      "value": "REPLACE_WITH_HANDOFF_ID",
+      "type": "string"
+    },
+    {
+      "key": "parkingSessionId",
+      "value": "REPLACE_WITH_PARKING_SESSION_ID",
+      "type": "string"
+    },
+    {
+      "key": "parkingAreaId",
+      "value": "REPLACE_WITH_PARKING_AREA_ID",
+      "type": "string"
+    },
+    {
+      "key": "promptId",
+      "value": "REPLACE_WITH_PAID_PARKING_PROMPT_ID",
+      "type": "string"
+    },
+    {
+      "key": "latitude",
+      "value": "23.7806",
+      "type": "string"
+    },
+    {
+      "key": "longitude",
+      "value": "90.4074",
+      "type": "string"
+    },
+    {
+      "key": "radiusMeters",
+      "value": "300",
+      "type": "string"
+    }
+  ]
+}
