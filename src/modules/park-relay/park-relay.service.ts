@@ -157,7 +157,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     await this.cleanupExpiredHandoffs();
     await this.assertNoUnexpiredHandoff(userId);
 
-    const resolvedSpotId = dto.spotId ?? await this.resolveActiveSavedParkingSpotId(userId);
+    const resolvedSpotId = dto.spotId ?? await this.resolveActiveParkingSpotId(userId);
 
     const expiresAt = new Date(Date.now() + this.HANDOFF_WINDOW_MINUTES * 60 * 1000);
     const approximateLocation = this.buildApproximateLocation(dto.latitude, dto.longitude);
@@ -184,13 +184,18 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       ),
     );
 
-    return {
-      ...handoff,
-      windowSeconds: this.HANDOFF_WINDOW_MINUTES * 60,
-      radiusMeters: this.HANDOFF_RADIUS_METERS,
-      notifiedSeekers: seekers.length,
-      approximateLocation,
-    };
+    const areasBySpotId = await this.getParkingAreaSummariesBySpotIds([resolvedSpotId]);
+
+    return this.attachParkingAreaSummary(
+      {
+        ...handoff,
+        windowSeconds: this.HANDOFF_WINDOW_MINUTES * 60,
+        radiusMeters: this.HANDOFF_RADIUS_METERS,
+        notifiedSeekers: seekers.length,
+        approximateLocation,
+      },
+      areasBySpotId,
+    );
   }
 
   async acceptHandoff(userId: string, handoffId: string) {
@@ -247,7 +252,20 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
   }
 
   async acceptHandoffAndPark(userId: string, handoffId: string, dto: AcceptHandoffAndParkDto) {
-    await this.acceptHandoff(userId, handoffId);
+    const handoff = await this.prismaService.parkingHandoff.findUnique({
+      where: { id: handoffId },
+    });
+
+    if (!handoff) {
+      throw new NotFoundException('Parking handoff not found');
+    }
+
+    const alreadyAcceptedByUser = handoff.status === 'ACCEPTED' && handoff.seekerId === userId;
+
+    if (!alreadyAcceptedByUser) {
+      await this.acceptHandoff(userId, handoffId);
+    }
+
     const occupied = await this.markHandoffOccupied(userId, handoffId);
 
     const areasBySpotId = await this.getParkingAreaSummariesBySpotIds([occupied.spotId]);
@@ -369,7 +387,12 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     return updated;
   }
 
-  async getNearbyHandoffs(latitude: number, longitude: number, radiusMeters = this.HANDOFF_RADIUS_METERS) {
+  async getNearbyHandoffs(
+    userId: string,
+    latitude: number,
+    longitude: number,
+    radiusMeters = this.HANDOFF_RADIUS_METERS,
+  ) {
     this.validateCoordinates(latitude, longitude);
     await this.expireOldHandoffs();
 
@@ -377,6 +400,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       where: {
         status: 'AVAILABLE',
         expiresAt: { gte: new Date() },
+        releaserId: { not: userId },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -1476,20 +1500,28 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async resolveActiveSavedParkingSpotId(userId: string): Promise<string | undefined> {
-    const activeSaved = await this.prismaService.savedParkingLocation.findFirst({
-      where: { userId, isActive: true },
-      orderBy: { createdAt: 'desc' },
-      select: { spotId: true },
-    });
+  private async resolveActiveParkingSpotId(userId: string): Promise<string | undefined> {
+    const [activeSession, activeSaved] = await Promise.all([
+      this.prismaService.parkingSession.findFirst({
+        where: { userId, status: 'ACTIVE' },
+        orderBy: { createdAt: 'desc' },
+        select: { spotId: true },
+      }),
+      this.prismaService.savedParkingLocation.findFirst({
+        where: { userId, isActive: true },
+        orderBy: { createdAt: 'desc' },
+        select: { spotId: true },
+      }),
+    ]);
 
-    return activeSaved?.spotId ?? undefined;
+    return activeSession?.spotId ?? activeSaved?.spotId ?? undefined;
   }
 
   private async assertNoUnexpiredHandoff(userId: string) {
     const existingHandoff = await this.prismaService.parkingHandoff.findFirst({
       where: {
         releaserId: userId,
+        status: 'AVAILABLE',
         expiresAt: { gt: new Date() },
       },
       orderBy: { createdAt: 'desc' },

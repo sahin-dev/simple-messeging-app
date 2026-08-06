@@ -133,11 +133,13 @@ export class ParkRelayController {
   @HttpCode(200)
   @ResponseMessage('Nearby parking handoffs fetched successfully')
   async getNearbyHandoffs(
+    @GetUser('id') userId: string,
     @Query('latitude') latitude: number,
     @Query('longitude') longitude: number,
     @Query('radiusMeters') radiusMeters?: number,
   ) {
     return this.parkRelayService.getNearbyHandoffs(
+      userId,
       Number(latitude),
       Number(longitude),
       radiusMeters ? Number(radiusMeters) : undefined,
