@@ -3,6 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { ChatModule } from './modules/chat/chat.module';
@@ -30,6 +31,7 @@ import { HelpSupportModule } from './modules/help-support/help-support.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [jwtConfig, mailerConfig, firebaseConfig, appleConfig] }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     UserModule,

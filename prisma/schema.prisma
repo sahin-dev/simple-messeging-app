@@ -772,6 +772,9 @@ model UserDocument {
   document_url  String?
   is_verified   Boolean      @default(false)
 
+  last_expiry_notified_days Int?
+  expired_notified_at       DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
