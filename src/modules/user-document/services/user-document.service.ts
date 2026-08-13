@@ -6,7 +6,9 @@ import { NotificationDispatcherService } from '../../notification/services/notif
 @Injectable()
 export class UserDocumentService {
   private readonly logger = new Logger(UserDocumentService.name);
-  private readonly EXPIRY_WARNING_DAYS = 30; // Send notification if expiry is within 30 days
+  private readonly EXPIRY_WARNING_DAYS = 30; // Documents within this window are surfaced to the user via getDocumentExpiryWarnings
+  // Thresholds (days-before-expiry) at which a push notification is sent, smallest/most-urgent first
+  static readonly EXPIRY_NOTIFICATION_THRESHOLDS = [1, 7, 15];
 
   constructor(
     private readonly prismaService: PrismaService,
@@ -196,6 +198,12 @@ export class UserDocumentService {
       );
     }
 
+    // Renewing/changing the expiry date should re-arm expiry notifications
+    if ('expiry_date' in updateData) {
+      updateData.last_expiry_notified_days = null;
+      updateData.expired_notified_at = null;
+    }
+
     // Only update document_url if provided
     if (updateDto.document_url !== undefined) {
       updateData.document_url = updateDto.document_url || null;
@@ -292,7 +300,9 @@ export class UserDocumentService {
   /**
    * Get all documents across all users that are expiring soon (for scheduled job)
    */
-  async getAllExpiringDocuments(daysThreshold: number = this.EXPIRY_WARNING_DAYS) {
+  async getAllExpiringDocuments(
+    daysThreshold: number = Math.max(...UserDocumentService.EXPIRY_NOTIFICATION_THRESHOLDS),
+  ) {
     const now = new Date();
     const warningDate = new Date();
     warningDate.setDate(warningDate.getDate() + daysThreshold);
@@ -331,11 +341,13 @@ export class UserDocumentService {
         expiry_date: {
           lt: now,
         },
+        expired_notified_at: null,
       },
       include: {
         user: {
           select: {
             id: true,
+            fcm_token: true,
             nick_name: true,
             email: true,
           },
