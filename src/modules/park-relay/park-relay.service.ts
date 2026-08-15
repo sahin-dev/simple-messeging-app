@@ -5,12 +5,15 @@ import {
   NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeolocationService } from 'src/common/services/geolocation.service';
 import { NotificationEventService } from '../notification/services/notification-event.service';
 import { NotificationEventTypeEnum } from '../notification/dtos/notification-event.dto';
 import { FireBaseClient } from '../notification/providers/firebase.provider';
+import { EMIT_EVENTS } from '../chat/enums/events.enum';
+import { SocketRoomService } from '../chat/services/socket-room.service';
 import { DisabledFacilityLocation, ParkingAreaType, ParkingCost } from 'src/common/enums';
 import {
   AcceptHandoffAndParkDto,
@@ -46,6 +49,8 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     private readonly geolocationService: GeolocationService,
     private readonly notificationEventService: NotificationEventService,
     private readonly firebaseClient: FireBaseClient,
+    @Optional()
+    private readonly socketRoomService?: SocketRoomService,
   ) {}
 
   onModuleInit() {
@@ -1478,6 +1483,14 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       if (user?.fcm_token) {
         await this.firebaseClient.sendPushNotification(user.fcm_token, title, message);
       }
+
+      // Real-time socket notification for online seekers
+      this.socketRoomService?.emitToUser(
+        seekerId,
+        EMIT_EVENTS.PARK_RELAY_HANDOFF_NEARBY,
+        payload,
+      );
+
     } catch (err: any) {
       this.logger.error(`Failed to notify seeker ${seekerId}: ${err.message}`);
     }

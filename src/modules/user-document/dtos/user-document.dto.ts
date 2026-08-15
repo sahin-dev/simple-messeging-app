@@ -30,8 +30,7 @@ export class UploadUserDocumentDto {
 
 export class UploadUserDocumentFileDto {
   @IsEnum(DocumentTypeEnum)
-  @IsOptional()
-  @IsOptional()
+  @IsNotEmpty()
   document_type: DocumentTypeEnum;
 
   @Transform(({ value }) => value === undefined || value === null ? value : String(value))

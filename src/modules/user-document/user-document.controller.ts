@@ -57,6 +57,21 @@ export class UserDocumentController {
   }
 
   /**
+   * Re-throws known HttpExceptions (BadRequestException, NotFoundException, etc.)
+   * as-is so their real status code and message reach the client unchanged.
+   * Only genuinely unexpected errors are collapsed into a 500.
+   */
+  private rethrow(err: any, fallbackMessage: string): never {
+    if (err instanceof HttpException) {
+      throw err;
+    }
+    throw new HttpException(
+      err?.message || fallbackMessage,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
+
+  /**
    * Upload a new document for the authenticated user
    * Only one document per type is allowed
    * Document expiry date must be in the future
@@ -109,10 +124,7 @@ export class UserDocumentController {
       return this.toUserDocumentResponse(document);
     } catch (err: any) {
       this.logger.error(`Error uploading document: ${err.message}`);
-      throw new BadRequestException(
-        err.message || 'Failed to upload document',
-        err.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.rethrow(err, 'Failed to upload document');
     }
   }
 
@@ -136,10 +148,7 @@ export class UserDocumentController {
       };
     } catch (err: any) {
       this.logger.error(`Error fetching documents: ${err.message}`);
-      throw new BadRequestException(
-        err.message || 'Failed to fetch documents',
-        err.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.rethrow(err, 'Failed to fetch documents');
     }
   }
 
@@ -164,10 +173,7 @@ export class UserDocumentController {
       return this.toUserDocumentResponse(document);
     } catch (err: any) {
       this.logger.error(`Error fetching document: ${err.message}`);
-      throw new HttpException(
-        err.message || 'Failed to fetch document',
-        err.statusCode || HttpStatus.NOT_FOUND,
-      );
+      this.rethrow(err, 'Failed to fetch document');
     }
   }
 
@@ -194,10 +200,7 @@ export class UserDocumentController {
       return this.toUserDocumentResponse(document);
     } catch (err: any) {
       this.logger.error(`Error fetching document by type: ${err.message}`);
-      throw new HttpException(
-        err.message || 'Document not found',
-        err.statusCode || HttpStatus.NOT_FOUND,
-      );
+      this.rethrow(err, 'Document not found');
     }
   }
 
@@ -269,10 +272,7 @@ export class UserDocumentController {
       return this.toUserDocumentResponse(document);
     } catch (err: any) {
       this.logger.error(`Error updating document: ${err.message}`);
-      throw new HttpException(
-        err.message || 'Failed to update document',
-        err.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.rethrow(err, 'Failed to update document');
     }
   }
 
@@ -294,10 +294,7 @@ export class UserDocumentController {
       return { message: 'Document deleted successfully' };
     } catch (err: any) {
       this.logger.error(`Error deleting document: ${err.message}`);
-      throw new HttpException(
-        err.message || 'Failed to delete document',
-        err.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.rethrow(err, 'Failed to delete document');
     }
   }
 
@@ -326,10 +323,7 @@ export class UserDocumentController {
       };
     } catch (err: any) {
       this.logger.error(`Error fetching expiry warnings: ${err.message}`);
-      throw new HttpException(
-        err.message || 'Failed to fetch expiry warnings',
-        err.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.rethrow(err, 'Failed to fetch expiry warnings');
     }
   }
 
@@ -351,10 +345,7 @@ export class UserDocumentController {
       };
     } catch (err: any) {
       this.logger.error(`Error during manual expiry check: ${err.message}`);
-      throw new HttpException(
-        err.message || 'Failed to run expiry check',
-        err.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.rethrow(err, 'Failed to run expiry check');
     }
   }
 
@@ -399,10 +390,7 @@ export class UserDocumentController {
       };
     } catch (err: any) {
       this.logger.error(`Error fetching user documents: ${err.message}`);
-      throw new HttpException(
-        err.message || 'Failed to fetch user documents',
-        err.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.rethrow(err, 'Failed to fetch user documents');
     }
   }
 
