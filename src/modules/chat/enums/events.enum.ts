@@ -30,6 +30,9 @@ export enum EMIT_EVENTS  {
     GROUP_MESSAGE_DELETED = "group-message-deleted",
     GROUP_USER_TYPING = "group-user-typing",
     GROUP_USER_STOPPED_TYPING = "group-user-stopped-typing",
+
+    // Park Relay Events
+    PARK_RELAY_HANDOFF_NEARBY = "park-relay-handoff-nearby",
 }
 
 export enum SUBSCRIBED_EVENTS {

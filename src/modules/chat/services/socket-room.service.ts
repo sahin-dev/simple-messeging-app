@@ -71,6 +71,17 @@ export class SocketRoomService {
   }
 
   /**
+   * Emit an event to a specific user's personal socket room (`user-{userId}`)
+   */
+  emitToUser(userId: string, event: string, payload: any): void {
+    if (!this.server) {
+      this.logger.warn('Socket.IO server not initialized, skipping emit');
+      return;
+    }
+    this.server.to(`user-${userId}`).emit(event, payload);
+  }
+
+  /**
    * Generate Socket.IO room ID for a group chat
    */
   private generateGroupRoomId(groupChatRoomId: string | number): string {
