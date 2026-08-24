@@ -71,6 +71,10 @@ export class SaveParkingLocationDto extends ParkingCoordinatesDto {
   name?: string;
 
   @IsOptional()
+  @IsString()
+  spotId?: string;
+
+  @IsOptional()
   @IsNumber()
   accuracy?: number;
 

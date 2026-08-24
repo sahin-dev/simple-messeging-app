@@ -513,6 +513,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     const savedParkingData = {
       userId,
       name: dto.name,
+      spotId: dto.spotId,
       latitude: dto.latitude,
       longitude: dto.longitude,
       accuracy: dto.accuracy,
@@ -623,6 +624,9 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
         skip,
         take: normalizedLimit,
         orderBy: { createdAt: 'desc' },
+        include: {
+          parkingArea: true,
+        },
       }),
       this.prismaService.savedParkingLocation.count({
         where: { userId },
@@ -980,7 +984,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
           dto.disabledFacilityLocation,
         ) as any,
         totalSpots: dto.totalSpots,
-        isActive: false,
+        isActive: true,
         createdById: userId,
       },
     });
