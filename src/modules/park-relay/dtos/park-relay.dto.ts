@@ -45,11 +45,7 @@ export class UpdateParkingModeDto extends ParkingCoordinatesDto {
   confidence?: number;
 }
 
-export class CreateParkingHandoffDto extends ParkingCoordinatesDto {
-  @IsOptional()
-  @IsString()
-  spotId?: string;
-}
+export class CreateParkingHandoffDto extends ParkingCoordinatesDto {}
 
 export class AcceptHandoffAndParkDto {
   @IsOptional()
@@ -71,6 +67,10 @@ export class AcceptHandoffAndParkDto {
 
 export class SaveParkingLocationDto extends ParkingCoordinatesDto {
   @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
   @IsNumber()
   accuracy?: number;
 
@@ -81,10 +81,6 @@ export class SaveParkingLocationDto extends ParkingCoordinatesDto {
   @IsOptional()
   @IsEnum(ParkingSaveSourceDto)
   source?: ParkingSaveSourceDto;
-
-  @IsOptional()
-  @IsString()
-  spotId?: string;
 
   @IsOptional()
   @IsEnum(ParkingCost)

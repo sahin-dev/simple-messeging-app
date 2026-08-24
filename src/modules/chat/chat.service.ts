@@ -884,8 +884,8 @@ export class ChatService {
 
         console.log("User id", userId)
 
-        // Fetch one-to-one chat rooms and group chat rooms in parallel
-        const [oneToOneData, groupData] = await Promise.all([
+        // Fetch one-to-one rooms, group rooms, and pending incoming message requests in parallel.
+        const [oneToOneData, groupData, messageRequestData] = await Promise.all([
             // One-to-one rooms
             Promise.all([
                 this.prismaService.chatRoom.findMany({
@@ -1009,11 +1009,44 @@ export class ChatService {
                         }
                     }
                 })
-            ])
+            ]),
+            Promise.all([
+                this.prismaService.messageRequest.findMany({
+                    where: {
+                        receiverId: userId,
+                        status: 'PENDING',
+                    },
+                    orderBy: {
+                        updatedAt: "desc",
+                    },
+                }),
+                this.prismaService.messageRequest.count({
+                    where: {
+                        receiverId: userId,
+                        status: 'PENDING',
+                    },
+                }),
+            ]),
         ]);
 
         const [oneToOneRooms, oneToOneTotal] = oneToOneData;
         const [groupRooms, groupTotal] = groupData;
+        const [messageRequests, messageRequestTotal] = messageRequestData;
+        const messageRequestSenderIds = [...new Set(messageRequests.map((request) => request.senderId))];
+        const messageRequestSenders = await this.prismaService.user.findMany({
+            where: { id: { in: messageRequestSenderIds } },
+            select: {
+                id: true,
+                nick_name: true,
+                licence_id: true,
+                avatar: true,
+                is_vehicle_verified: true,
+                lastSeenAt: true,
+            },
+        });
+        const messageRequestSenderById = new Map(
+            messageRequestSenders.map((sender) => [sender.id, sender]),
+        );
 
         // Map one-to-one rooms
         const mappedOneToOneRooms = oneToOneRooms.map(async ({ user1, user2, _count, chats, ...room }) => {
@@ -1087,13 +1120,59 @@ export class ChatService {
             };
         });
 
-        // Combine both room types and sort by updatedAt
+        const mappedMessageRequests = messageRequests.map(async (request) => {
+            const sender = messageRequestSenderById.get(request.senderId) ?? null;
+            const rating = sender
+                ? await this.ratingService.getAverageRatingForUser(sender.id)
+                : null;
+
+            if (sender && rating) {
+                Object.assign(sender, {
+                    rating: rating.averageRating,
+                    totalRating: rating.totalRatings,
+                    totalRatings: rating.totalRatings,
+                });
+            }
+
+            return {
+                id: request.id,
+                type: 'MESSAGE_REQUEST',
+                threadType: 'MESSAGE_REQUEST',
+                requestId: request.id,
+                roomId: null,
+                status: request.status,
+                otherUser: sender ? this.attachPresence(sender) : null,
+                request: this.formatMessageRequestState(request),
+                latest_message: request.firstMessage ? {
+                    id: request.id,
+                    requestId: request.id,
+                    chatRoom_id: null,
+                    sender_id: request.senderId,
+                    receiver_id: request.receiverId,
+                    message: request.firstMessage,
+                    type: 'REQUEST_PREVIEW',
+                    createdAt: request.createdAt,
+                    updatedAt: request.updatedAt,
+                    is_mine: false,
+                } : null,
+                unread_count: 1,
+                canAccept: true,
+                canReject: true,
+                canBlock: false,
+                actions: ['ACCEPT', 'REJECT'],
+                createdAt: request.createdAt,
+                updatedAt: request.updatedAt,
+            };
+        });
+
+        // Combine room and request types so the client can render one inbox list.
         const allMappedOneToOne = await Promise.all(mappedOneToOneRooms);
-        const allRooms = [...allMappedOneToOne, ...mappedGroupRooms]
+        const allMappedMessageRequests = await Promise.all(mappedMessageRequests);
+        const allRooms = [...allMappedOneToOne, ...mappedGroupRooms, ...allMappedMessageRequests]
             .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
             .slice(skip, skip + getUserRoomsDto.limit);
 
-        const total = oneToOneTotal + groupTotal;
+        const total = oneToOneTotal + groupTotal + messageRequestTotal;
 
         return { rooms: allRooms, total };
     }
@@ -1345,7 +1424,7 @@ export class ChatService {
         }
 
         if (request.receiverId === userId) {
-            return ['ACCEPT', 'REJECT', 'BLOCK'];
+            return ['ACCEPT', 'REJECT'];
         }
 
         if (request.senderId === userId) {

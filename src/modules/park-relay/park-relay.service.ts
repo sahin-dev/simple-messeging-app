@@ -162,14 +162,11 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     await this.cleanupExpiredHandoffs();
     await this.assertNoUnexpiredHandoff(userId);
 
-    const resolvedSpotId = dto.spotId ?? await this.resolveActiveParkingSpotId(userId);
-
     const expiresAt = new Date(Date.now() + this.HANDOFF_WINDOW_MINUTES * 60 * 1000);
     const approximateLocation = this.buildApproximateLocation(dto.latitude, dto.longitude);
     const handoff = await this.prismaService.parkingHandoff.create({
       data: {
         releaserId: userId,
-        spotId: resolvedSpotId,
         latitude: dto.latitude,
         longitude: dto.longitude,
         approxLatitude: approximateLocation.latitude,
@@ -189,8 +186,6 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       ),
     );
 
-    const areasBySpotId = await this.getParkingAreaSummariesBySpotIds([resolvedSpotId]);
-
     return this.attachParkingAreaSummary(
       {
         ...handoff,
@@ -199,7 +194,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
         notifiedSeekers: seekers.length,
         approximateLocation,
       },
-      areasBySpotId,
+      new Map(),
     );
   }
 
@@ -283,7 +278,6 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       accuracy: dto.accuracy,
       confidence: dto.confidence,
       source: ParkingSaveSourceDto.AUTO,
-      spotId: occupied.spotId ?? undefined,
       parkingType,
       note: dto.note,
       photoUrl: dto.photoUrl,
@@ -298,7 +292,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
 
     return {
       handoff: this.attachParkingAreaSummary(occupied, areasBySpotId),
-      savedParking: this.attachParkingAreaSummary(savedParking, areasBySpotId),
+      savedParking,
       parkingMode,
       paidParkingPrompt: savedParking.paidParkingPrompt,
     };
@@ -518,7 +512,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
 
     const savedParkingData = {
       userId,
-      spotId: dto.spotId,
+      name: dto.name,
       latitude: dto.latitude,
       longitude: dto.longitude,
       accuracy: dto.accuracy,
@@ -550,10 +544,12 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     const paidParkingPrompt = dto.parkingType || !createPaidParkingPrompt
       ? null
       : await this.createPendingPaidParkingPrompt(userId, saved.id);
+    const distanceMeters = await this.getSavedParkingDistanceMeters(userId, saved);
 
     return {
       ...saved,
       googleMapsWalkingLink: this.buildGoogleMapsLink(saved.latitude, saved.longitude, 'walking'),
+      distanceMeters,
       parkingSession,
       paidParkingPrompt,
     };
@@ -591,17 +587,16 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundException('Saved parking location not found');
     }
 
-    const [parkingSession, areasBySpotId] = await Promise.all([
-      this.prismaService.parkingSession.findFirst({
-        where: { userId, status: 'ACTIVE' },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.getParkingAreaSummariesBySpotIds([saved.spotId]),
-    ]);
+    const parkingSession = await this.prismaService.parkingSession.findFirst({
+      where: { userId, status: 'ACTIVE' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const distanceMeters = await this.getSavedParkingDistanceMeters(userId, saved);
 
-    return this.attachParkingAreaSummary({
+    return {
       ...saved,
       googleMapsWalkingLink: this.buildGoogleMapsLink(saved.latitude, saved.longitude, 'walking'),
+      distanceMeters,
       parkingSession: parkingSession
         ? {
             ...parkingSession,
@@ -612,7 +607,7 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
             ),
           }
         : null,
-    }, areasBySpotId);
+    };
   }
 
   async getSavedParkingHistory(userId: string, page = 1, limit = 20) {
@@ -633,20 +628,18 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
         where: { userId },
       }),
     ]);
-
-    const areasBySpotId = await this.getParkingAreaSummariesBySpotIds(
-      locations.map((location) => location.spotId),
-    );
+    const userLocation = await this.geolocationService.getUserLocation(userId);
 
     return {
-      locations: locations.map((location) => this.attachParkingAreaSummary({
+      locations: locations.map((location) => ({
         ...location,
         googleMapsWalkingLink: this.buildGoogleMapsLink(
           location.latitude,
           location.longitude,
           'walking',
         ),
-      }, areasBySpotId)),
+        distanceMeters: this.calculateDistanceFromUserLocation(userLocation, location),
+      })),
       total,
       page: normalizedPage,
       limit: normalizedLimit,
@@ -1528,23 +1521,6 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async resolveActiveParkingSpotId(userId: string): Promise<string | undefined> {
-    const [activeSession, activeSaved] = await Promise.all([
-      this.prismaService.parkingSession.findFirst({
-        where: { userId, status: 'ACTIVE' },
-        orderBy: { createdAt: 'desc' },
-        select: { spotId: true },
-      }),
-      this.prismaService.savedParkingLocation.findFirst({
-        where: { userId, isActive: true },
-        orderBy: { createdAt: 'desc' },
-        select: { spotId: true },
-      }),
-    ]);
-
-    return activeSession?.spotId ?? activeSaved?.spotId ?? undefined;
-  }
-
   private async assertNoUnexpiredHandoff(userId: string) {
     const existingHandoff = await this.prismaService.parkingHandoff.findFirst({
       where: {
@@ -1668,6 +1644,32 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
 
     return error?.code === 'P2002'
       && targetText.includes('saved_parking_locations_userId_key');
+  }
+
+  private async getSavedParkingDistanceMeters(
+    userId: string,
+    location: { latitude: number; longitude: number },
+  ) {
+    const userLocation = await this.geolocationService.getUserLocation(userId);
+    return this.calculateDistanceFromUserLocation(userLocation, location);
+  }
+
+  private calculateDistanceFromUserLocation(
+    userLocation: { latitude: number; longitude: number } | null | undefined,
+    location: { latitude: number; longitude: number },
+  ) {
+    if (!userLocation) {
+      return null;
+    }
+
+    return Math.round(
+      this.geolocationService.calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        location.latitude,
+        location.longitude,
+      ),
+    );
   }
 
   private async notifyHandoffExpired(

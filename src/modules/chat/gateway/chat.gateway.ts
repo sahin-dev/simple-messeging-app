@@ -317,13 +317,8 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
             const rooms = await this.chatService.getUserChatRooms(userId, getUserRoomsDto)
             console.log(rooms)
-            const roomDto = plainToInstance(AllUserRoomsDto, rooms, {
-                excludeExtraneousValues: true
-            })
 
-            this.server.to(this.generateUserRoomId(userId)).emit(EMIT_EVENTS.ALL_CHAT_ROOMS, {
-                ...roomDto
-            })
+            this.server.to(this.generateUserRoomId(userId)).emit(EMIT_EVENTS.ALL_CHAT_ROOMS, rooms)
         } catch (err: any) {
             console.error('Error in getAllUserRooms:', err);
             throw new WsException({ message: err.message });

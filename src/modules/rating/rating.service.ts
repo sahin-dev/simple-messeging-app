@@ -51,7 +51,7 @@ export class RatingService {
         ratee_id: createRatingDto.ratee_id,
         rating: createRatingDto.rating,
         review: createRatingDto.review,
-        status: 'PENDING',
+        status: RatingStatus.PUBLISHED,
       },
       include: {
         rater: {

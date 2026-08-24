@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsEnum, IsNotEmpty, IsString, IsDateString, IsOptional } from 'class-validator';
+import { IsEnum, IsString, IsDateString, IsOptional } from 'class-validator';
 
 export enum DocumentTypeEnum {
   LICENSE = 'LICENSE',
@@ -11,8 +11,8 @@ export enum DocumentTypeEnum {
 
 export class UploadUserDocumentDto {
   @IsEnum(DocumentTypeEnum)
-  @IsNotEmpty()
-  document_type: DocumentTypeEnum;
+  @IsOptional()
+  document_type?: DocumentTypeEnum;
 
   @Transform(({ value }) => value === undefined || value === null ? value : String(value))
   @IsOptional()
@@ -30,8 +30,8 @@ export class UploadUserDocumentDto {
 
 export class UploadUserDocumentFileDto {
   @IsEnum(DocumentTypeEnum)
-  @IsNotEmpty()
-  document_type: DocumentTypeEnum;
+  @IsOptional()
+  document_type?: DocumentTypeEnum;
 
   @Transform(({ value }) => value === undefined || value === null ? value : String(value))
   @IsOptional()
@@ -79,7 +79,6 @@ export class UpdateUserDocumentFileDto {
   expiry_date?: string; // ISO date string (YYYY-MM-DD)
 
   @IsEnum(DocumentTypeEnum)
-  @IsNotEmpty()
   @IsOptional()
   document_type?: DocumentTypeEnum;
 
@@ -93,7 +92,7 @@ export class UpdateUserDocumentFileDto {
 export class UserDocumentResponseDto {
   id: string;
   unique_id: string | null;
-  document_type: string;
+  document_type: string | null;
   document_url: string | null;
   expiry_date: string | null; // ISO date string
   is_verified: boolean;
