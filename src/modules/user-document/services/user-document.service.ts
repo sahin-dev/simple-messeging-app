@@ -28,18 +28,20 @@ export class UserDocumentService {
       throw new NotFoundException('User not found');
     }
 
-    // Check if user already has a document of this type
-    const existingDocument = await this.prismaService.userDocument.findFirst({
-      where: {
-        user_id: userId,
-        document_type: uploadDto.document_type,
-      },
-    });
+    // Only enforce one document per type when a type is provided.
+    if (uploadDto.document_type) {
+      const existingDocument = await this.prismaService.userDocument.findFirst({
+        where: {
+          user_id: userId,
+          document_type: uploadDto.document_type,
+        },
+      });
 
-    if (existingDocument) {
-      throw new BadRequestException(
-        `You already have a ${uploadDto.document_type} document. Please update or delete it first.`,
-      );
+      if (existingDocument) {
+        throw new BadRequestException(
+          `You already have a ${uploadDto.document_type} document. Please update or delete it first.`,
+        );
+      }
     }
 
     const expiryDate = this.resolveExpiryDate(
@@ -70,7 +72,7 @@ export class UserDocumentService {
     const uploaderName = user.nick_name || user.name || 'A user';
     this.notificationDispatcherService.dispatchAdminNotification(
       'New Document Uploaded',
-      `${uploaderName} uploaded a new ${document.document_type} document for verification.`,
+      `${uploaderName} uploaded a new ${document.document_type ?? 'user'} document for verification.`,
       { documentId: document.id, userId }
     ).catch((err) => {
       this.logger.error(`Failed to notify admins of document upload: ${err.message}`);
@@ -223,7 +225,7 @@ export class UserDocumentService {
     const ownerName = owner?.nick_name || owner?.name || 'A user';
     this.notificationDispatcherService.dispatchAdminNotification(
       'Document Updated',
-      `${ownerName} updated their ${updatedDocument.document_type} document.`,
+      `${ownerName} updated their ${updatedDocument.document_type ?? 'user'} document.`,
       { documentId, userId }
     ).catch((err) => {
       this.logger.error(`Failed to notify admins of document update: ${err.message}`);
@@ -412,13 +414,13 @@ export class UserDocumentService {
   /**
    * Calculate days until document expiry
    */
-  private resolveExpiryDate(documentType: string, expiryDate?: string | null): Date | null {
+  private resolveExpiryDate(documentType?: string | null, expiryDate?: string | null): Date | null {
     if (documentType === 'VEHICLE_OWNERSHIP') {
       return null;
     }
 
     if (!expiryDate) {
-      throw new BadRequestException('Document expiry date is required');
+      return null;
     }
 
     const parsedExpiryDate = new Date(expiryDate);

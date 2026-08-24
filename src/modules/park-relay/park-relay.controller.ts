@@ -170,6 +170,8 @@ export class ParkRelayController {
     @GetUser('id') userId: string,
     @Body() dto: SaveParkingLocationDto,
   ) {
+
+    
     return this.parkRelayService.saveParkingLocation(userId, dto);
   }
 

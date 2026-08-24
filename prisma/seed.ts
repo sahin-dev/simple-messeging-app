@@ -432,12 +432,12 @@ async function seedParkData() {
     },
   });
 
-  // Saved parking locations linked back to the areas above via spotId.
+  // Saved parking locations are standalone user history entries.
   await prisma.savedParkingLocation.createMany({
     data: [
       {
         userId: releaser.id,
-        spotId: paidArea.id,
+        name: paidArea.name,
         latitude: 23.7806,
         longitude: 90.4074,
         accuracy: 6,
@@ -449,7 +449,7 @@ async function seedParkData() {
       },
       {
         userId: seeker.id,
-        spotId: freeArea.id,
+        name: freeArea.name,
         latitude: 23.781,
         longitude: 90.4078,
         accuracy: 12,
