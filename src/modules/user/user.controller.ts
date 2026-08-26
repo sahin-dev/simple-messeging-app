@@ -305,7 +305,7 @@ export class UserController {
         <body>
             <div class="card">
                 <div class="logo-container">
-                    <div class="logo">PLATE<span>Chatter</span></div>
+                    <div class="logo">WHEEW</span></div>
                 </div>
                 <img class="qr-image" src="${qrcode}" alt="QR Code" />
                 <div class="username">@${user.nick_name}</div>
