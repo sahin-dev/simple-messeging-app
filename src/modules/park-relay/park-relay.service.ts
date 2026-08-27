@@ -30,6 +30,7 @@ import {
   UpdateParkingAreaDto,
   UpdateParkingAreaRatingDto,
   UpdateParkingModeDto,
+  ViewportParkingAreaDto,
 } from './dtos/park-relay.dto';
 
 @Injectable()
@@ -1110,6 +1111,69 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
       }))
       .filter((area) => area.distanceMeters <= Number(radiusMeters))
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
+  }
+
+  async getParkingAreasInViewport(query: ViewportParkingAreaDto) {
+    const north = Number(query.north);
+    const south = Number(query.south);
+    const east = Number(query.east);
+    const west = Number(query.west);
+    const limit = Math.min(Math.max(Number(query.limit) || 200, 1), 500);
+
+    if (north <= south) {
+      throw new BadRequestException('north must be greater than south');
+    }
+
+    const where: any = {
+      isActive: true,
+      centerLat: { gte: south, lte: north },
+    };
+
+    // When west is greater than east, the viewport crosses the antimeridian.
+    if (west <= east) {
+      where.centerLng = { gte: west, lte: east };
+    } else {
+      where.OR = [
+        { centerLng: { gte: west } },
+        { centerLng: { lte: east } },
+      ];
+    }
+
+    if (query.parkingCost) {
+      where.parkingCost = query.parkingCost;
+    }
+
+    if (query.parkingAreaTypes?.length) {
+      where.parkingAreaTypes = { hasEvery: query.parkingAreaTypes };
+    }
+
+    if (query.disabledFacilityLocation) {
+      where.disabledFacilityLocation = query.disabledFacilityLocation;
+    }
+
+    const [areas, total] = await Promise.all([
+      this.prismaService.parkingArea.findMany({
+        where,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prismaService.parkingArea.count({ where }),
+    ]);
+
+    return {
+      areas: areas.map((area) => ({
+        ...area,
+        googleMapsLink: this.buildGoogleMapsLink(
+          area.centerLat,
+          area.centerLng,
+          'driving',
+        ),
+      })),
+      total,
+      limit,
+      truncated: total > limit,
+      bounds: { north, south, east, west },
+    };
   }
 
   async updateParkingArea(areaId: string, dto: UpdateParkingAreaDto) {

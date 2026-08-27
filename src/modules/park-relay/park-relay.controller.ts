@@ -28,6 +28,7 @@ import {
   UpdateParkingAreaDto,
   UpdateParkingAreaRatingDto,
   UpdateParkingModeDto,
+  ViewportParkingAreaDto,
 } from './dtos/park-relay.dto';
 
 @Controller('park-relay')
@@ -297,6 +298,13 @@ export class ParkRelayController {
       Number(longitude),
       radiusMeters ? Number(radiusMeters) : undefined,
     );
+  }
+
+  @Get('parking-areas/viewport')
+  @HttpCode(200)
+  @ResponseMessage('Parking areas in map viewport fetched successfully')
+  async getParkingAreasInViewport(@Query() query: ViewportParkingAreaDto) {
+    return this.parkRelayService.getParkingAreasInViewport(query);
   }
 
   @Get('parking-areas/search')

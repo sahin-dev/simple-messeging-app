@@ -36,6 +36,7 @@ export class SMTPProvider {
 
         try{
             await this.transporter.sendMail({
+                from:"noreply@platechat.app",
             to,
             subject,
             html:body
