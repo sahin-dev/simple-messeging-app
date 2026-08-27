@@ -35,12 +35,13 @@ export class SMTPProvider {
         }
 
         try{
-            await this.transporter.sendMail({
+            const res = await this.transporter.sendMail({
                 from:"noreply@platechat.app",
             to,
             subject,
             html:body
         })
+        console.log(res)
         }catch(err){
             console.log(err)
             console.log("sending failed... ")
