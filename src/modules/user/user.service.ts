@@ -446,11 +446,17 @@ export class UserService {
             data: { otp, otp_expires: otpExpires }
         });
 
-        this.smtpProvider.sendMail(
-            email,
-            "OTP for password reset",
-            otpEmailTemplate({name:user.nick_name, otp})
-        );
+        try{
+             await this.smtpProvider.sendMail(
+                email,
+                "OTP for password reset",
+                otpEmailTemplate({name:user.nick_name, otp})
+            );
+        }catch(err){
+            console.log(err)
+        }
+
+       
 
         return { message: "OTP sent successfully" };
     }
