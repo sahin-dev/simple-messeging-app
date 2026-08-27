@@ -14,7 +14,7 @@ export class SMTPProvider {
             this.transporter = nodemailer.createTransport({
             host: this.mailerConfiguration.host,
             port: parseInt(this.mailerConfiguration.port!),
-            secure:false,
+            secure:true,
             auth:{
                 user: this.mailerConfiguration.user,
                 pass: this.mailerConfiguration.password
