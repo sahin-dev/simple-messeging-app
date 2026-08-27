@@ -171,14 +171,18 @@ export class AuthService {
         const { confirmPassword, ...userData } = registerUserDto;
         const user = await this.userService.addUser(userData);
 
-
-        this.smtpProvider.sendMail(
+        try{
+            this.smtpProvider.sendMail(
             user.email,
             "Welcome to PLATEChatter",
             welcomeEmailTemplate({ name: user.name || user.nick_name || "User" })
         ).then(() => {
             this.logger.log(`Welcome email sent to ${user.email}`)
         })
+        }catch(err){
+            console.log(err)
+        }
+        
 
         const token = await this.signJwtToken(user);
 
