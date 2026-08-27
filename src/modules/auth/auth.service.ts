@@ -172,7 +172,7 @@ export class AuthService {
         const user = await this.userService.addUser(userData);
 
         try{
-            this.smtpProvider.sendMail(
+            await this.smtpProvider.sendMail(
             user.email,
             "Welcome to PLATEChatter",
             welcomeEmailTemplate({ name: user.name || user.nick_name || "User" })
