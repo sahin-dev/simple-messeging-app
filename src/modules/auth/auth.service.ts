@@ -173,12 +173,10 @@ export class AuthService {
 
         try{
             await this.smtpProvider.sendMail(
-            user.email,
-            "Welcome to PLATEChatter",
-            welcomeEmailTemplate({ name: user.name || user.nick_name || "User" })
-        ).then(() => {
-            this.logger.log(`Welcome email sent to ${user.email}`)
-        })
+                user.email,
+                "Welcome to PLATEChatter",
+                welcomeEmailTemplate({ name: user.name || user.nick_name || "User" })
+            )
         }catch(err){
             console.log(err)
         }
