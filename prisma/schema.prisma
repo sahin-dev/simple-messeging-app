@@ -580,6 +580,7 @@ model ParkingArea {
   savedParkingLocations    SavedParkingLocation[]
 
   @@index([isActive])
+  @@index([isActive, centerLat, centerLng])
   @@map("parking_areas")
 }
 

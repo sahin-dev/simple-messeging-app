@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -313,6 +314,53 @@ export class SearchParkingAreaDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  limit?: number;
+}
+
+export class ViewportParkingAreaDto {
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  north: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  south: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  east: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  west: number;
+
+  @IsOptional()
+  @IsEnum(ParkingCost)
+  parkingCost?: ParkingCost;
+
+  @IsOptional()
+  @Transform(toParkingAreaTypeArray)
+  @IsArray()
+  @IsEnum(ParkingAreaType, { each: true })
+  parkingAreaTypes?: ParkingAreaType[];
+
+  @IsOptional()
+  @IsEnum(DisabledFacilityLocation)
+  disabledFacilityLocation?: DisabledFacilityLocation;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
   limit?: number;
 }
 
