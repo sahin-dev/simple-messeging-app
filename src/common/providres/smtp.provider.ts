@@ -25,8 +25,6 @@ export class SMTPProvider {
         }catch(err){
             console.log("SMTP transporter initialization failed!")
         }
-        
-       
     }
 
     async sendMail(to:string, subject:string, body:string){

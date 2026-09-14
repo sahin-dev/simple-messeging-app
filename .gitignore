@@ -26,6 +26,7 @@ lerna-debug.log*
 .project
 .classpath
 .c9/
+temp_auto_push.bat
 *.launch
 .settings/
 *.sublime-workspace
@@ -53,3 +54,5 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 /generated/prisma
+.gitignore
+branch_structure.json
