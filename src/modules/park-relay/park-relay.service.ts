@@ -413,9 +413,9 @@ export class ParkRelayService implements OnModuleInit, OnModuleDestroy {
         expiresAt: handoff.expiresAt,
         createdAt: handoff.createdAt,
         updatedAt: handoff.updatedAt,
-        latitude: handoff.approxLatitude ?? this.buildApproximateLocation(handoff.latitude, handoff.longitude).latitude,
-        longitude: handoff.approxLongitude ?? this.buildApproximateLocation(handoff.latitude, handoff.longitude).longitude,
-        hasExactLocation: false,
+        latitude: handoff.latitude,
+        longitude: handoff.longitude,
+        hasExactLocation: true,
         distanceMeters: Math.round(
           this.geolocationService.calculateDistance(
             latitude,
