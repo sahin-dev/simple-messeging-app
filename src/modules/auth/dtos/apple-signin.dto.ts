@@ -1,6 +1,7 @@
-import { Transform, TransformFnParams } from "class-transformer";
-import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
-import { VehicleType } from "generated/prisma/enums";
+import { Transform, TransformFnParams, Type } from "class-transformer";
+import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min, MinLength } from "class-validator";
+import { Gender, VehicleType } from "generated/prisma/enums";
+import { transformGender } from "src/common/transformers/gender.transformer";
 import { IsFcmToken } from "src/common/validators/is-fcm-token.validator";
 
 const trimValue = ({ value }: TransformFnParams) => typeof value === "string" ? value.trim() : value;
@@ -42,6 +43,20 @@ export class AppleSigninDto {
     @MinLength(3)
     @MaxLength(30)
     designation?: string
+
+    @IsEnum(Gender)
+    @Transform(transformGender)
+    @IsOptional()
+    gender?: Gender
+
+    @Type(() => Number)
+    @IsInt()
+    @Min(1000)
+    @Max(new Date().getFullYear() - 16, {
+        message: "User age must be 16 or greater"
+    })
+    @IsOptional()
+    birth_year?: number
 
     @IsBoolean()
     @IsOptional()

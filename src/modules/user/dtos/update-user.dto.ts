@@ -1,5 +1,7 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
-import { VehicleType } from "generated/prisma/enums";
+import { Transform, Type } from "class-transformer";
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min, MinLength } from "class-validator";
+import { Gender, VehicleType } from "generated/prisma/enums";
+import { transformGender } from "src/common/transformers/gender.transformer";
 
 export class UpdateUserDto {
     @IsString()
@@ -33,4 +35,18 @@ export class UpdateUserDto {
     @IsString()
     @IsOptional()
     city?: string;
+
+    @IsEnum(Gender)
+    @Transform(transformGender)
+    @IsOptional()
+    gender?: Gender;
+
+    @Type(() => Number)
+    @IsInt()
+    @Min(1000)
+    @Max(new Date().getFullYear() - 16, {
+        message: "User age must be 16 or greater"
+    })
+    @IsOptional()
+    birth_year?: number;
 }

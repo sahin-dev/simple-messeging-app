@@ -129,6 +129,15 @@ export class UserResponseDto {
     city?: string
 
     @Expose()
+    gender?: string
+
+    @Expose()
+    birth_year?: number
+
+    @Expose()
+    age?: number | null
+
+    @Expose()
     isOnline?: boolean
 
     @Expose()

@@ -11,10 +11,12 @@ export class SMTPProvider {
     constructor(@Inject(mailerConfig.KEY)private readonly mailerConfiguration:ConfigType<typeof MailerConfig>){
         console.log(mailerConfiguration)
         try{
+            const port = parseInt(this.mailerConfiguration.port!)
             this.transporter = nodemailer.createTransport({
             host: this.mailerConfiguration.host,
-            port: parseInt(this.mailerConfiguration.port!),
-            secure:true,
+            port,
+            // 465 = TLS from the start; 587/25 = plain connection upgraded via STARTTLS
+            secure: port === 465,
             auth:{
                 user: this.mailerConfiguration.user,
                 pass: this.mailerConfiguration.password
