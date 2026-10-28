@@ -47,4 +47,10 @@ export class SignInResponseDto {
 
     @Expose()
     city?: string
+
+    @Expose()
+    gender?: string
+
+    @Expose()
+    birth_year?: number
 }

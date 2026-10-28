@@ -29,6 +29,8 @@ model User {
   apple_sub                String?
   is_more_options_accepted Boolean     @default(false)
   designation              String?
+  gender                   Gender?
+  birth_year               Int?
   is_blocked               Boolean     @default(false)
   is_deleted               Boolean     @default(false)
   email_verified           Boolean     @default(false)
@@ -644,6 +646,12 @@ enum JobType {
 enum UserRole {
   USER
   ADMIN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  PREFER_NOT_TO_SAY
 }
 
 enum PolicyType {

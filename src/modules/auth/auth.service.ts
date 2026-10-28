@@ -235,6 +235,8 @@ export class AuthService {
                 nick_name: nickName,
                 licence_id: googleSigninDto.licence_id,
                 designation: googleSigninDto.designation,
+                gender: googleSigninDto.gender,
+                birth_year: googleSigninDto.birth_year,
                 is_more_options_accepted: googleSigninDto.is_more_options_accepted ?? false,
                 vehicle_type: googleSigninDto.vehicle_type,
                 vehicle_model: googleSigninDto.vehicle_model,
@@ -288,7 +290,7 @@ export class AuthService {
             email,
             name: decodedToken.name ?? null,
             picture: decodedToken.picture ?? null,
-            missingFields: existingUser ? [] : ["nick_name", "licence_id"],
+            missingFields: existingUser ? [] : ["nick_name", "licence_id", "gender", "birth_year"],
         };
     }
 
@@ -332,6 +334,7 @@ export class AuthService {
             throw new BadRequestException("Apple account email is required for first sign in.");
         }
 
+        this.assertAppleOnboardingFields(appleSigninDto);
         await this.assertLicenceIdAvailable(appleSigninDto.licence_id);
 
         const nickName = await this.resolveGoogleNickName(appleSigninDto.nick_name, email, appleSigninDto.name);
@@ -343,6 +346,8 @@ export class AuthService {
                 nick_name: nickName,
                 licence_id: appleSigninDto.licence_id,
                 designation: appleSigninDto.designation,
+                gender: appleSigninDto.gender,
+                birth_year: appleSigninDto.birth_year,
                 is_more_options_accepted: appleSigninDto.is_more_options_accepted ?? false,
                 vehicle_type: appleSigninDto.vehicle_type,
                 vehicle_model: appleSigninDto.vehicle_model,
@@ -426,11 +431,28 @@ export class AuthService {
         const missingFields = [
             !googleSigninDto.nick_name ? "nick_name" : null,
             !googleSigninDto.licence_id ? "licence_id" : null,
+            !googleSigninDto.gender ? "gender" : null,
+            !googleSigninDto.birth_year ? "birth_year" : null,
         ].filter((field): field is string => Boolean(field));
 
         if (missingFields.length > 0) {
             throw new BadRequestException({
                 message: "Google account requires onboarding before registration.",
+                requiresOnboarding: true,
+                missingFields,
+            });
+        }
+    }
+
+    private assertAppleOnboardingFields(appleSigninDto: AppleSigninDto) {
+        const missingFields = [
+            !appleSigninDto.gender ? "gender" : null,
+            !appleSigninDto.birth_year ? "birth_year" : null,
+        ].filter((field): field is string => Boolean(field));
+
+        if (missingFields.length > 0) {
+            throw new BadRequestException({
+                message: "Apple account requires onboarding before registration.",
                 requiresOnboarding: true,
                 missingFields,
             });

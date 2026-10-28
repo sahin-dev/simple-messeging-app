@@ -208,6 +208,7 @@ export class UserService {
 
             return {
                 ...user,
+                age: this.calculateAge(user.birth_year),
                 isOnline: presence?.isOnline ?? false,
                 lastSeenAt: presence?.lastSeenAt ?? user.lastSeenAt ?? null,
                 existingRoom,
@@ -360,6 +361,8 @@ export class UserService {
             nick_name: updateUserDto.nick_name ?? user.nick_name,
             name: updateUserDto.name ?? user.name,
             avatar: (file && file.path) ?? user.avatar,
+            gender: updateUserDto.gender !== undefined ? updateUserDto.gender : user.gender,
+            birth_year: updateUserDto.birth_year !== undefined ? updateUserDto.birth_year : user.birth_year,
             vehicle_type: updateUserDto.vehicle_type !== undefined ? updateUserDto.vehicle_type : user.vehicle_type,
             vehicle_model: updateUserDto.vehicle_model !== undefined ? updateUserDto.vehicle_model : user.vehicle_model,
             vehicle_color: updateUserDto.vehicle_color !== undefined ? updateUserDto.vehicle_color : user.vehicle_color,
@@ -808,6 +811,7 @@ export class UserService {
 
         return {
             ...user,
+            age: this.calculateAge(user.birth_year),
             rating: ratingData.averageRating,
             totalRating: ratingData.totalRatings,
             totalRatings: ratingData.totalRatings
@@ -844,6 +848,8 @@ export class UserService {
               id: true,
               nick_name: true,
               avatar: true,
+              gender: true,
+              birth_year: true,
               lastSeenAt: true,
             },
             skip,
@@ -865,6 +871,7 @@ export class UserService {
         return {
           users: users.map((user) => ({
             ...user,
+            age: this.calculateAge(user.birth_year),
             ...this.buildPresenceFields(user),
           })),
           total,
@@ -913,6 +920,8 @@ export class UserService {
               id: true,
               nick_name: true,
               avatar: true,
+              gender: true,
+              birth_year: true,
             },
             skip,
             take: paginationDto.limit,
@@ -922,7 +931,13 @@ export class UserService {
           }),
         ]);
     
-        return { users, total };
+        return {
+          users: users.map((user) => ({
+            ...user,
+            age: this.calculateAge(user.birth_year),
+          })),
+          total,
+        };
       }
 
     /**
@@ -1063,6 +1078,20 @@ export class UserService {
             isOnline: presence.isOnline,
             lastSeenAt: presence.lastSeenAt,
         };
+    }
+
+    private calculateAge(birthYear?: number | null) {
+        if (!birthYear) {
+            return null;
+        }
+
+        const currentYear = new Date().getFullYear();
+
+        if (birthYear < 1000 || birthYear > currentYear) {
+            return null;
+        }
+
+        return currentYear - birthYear;
     }
 }
 
